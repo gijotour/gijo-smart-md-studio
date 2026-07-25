@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GIJO Smart MD Studio - 이미지가 들어가는 마크다운(MD) 전용 문서 작성기</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Marked Markdown Parser CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app" class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <i class="fa-solid fa-file-signature brand-icon"></i>
+        <div class="brand-text">
+          <h1>GIJO Smart MD Studio</h1>
+          <span class="badge">v1.0</span>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <input type="text" id="document-title" class="title-input" value="개발 요청 및 기술 문서" placeholder="문서 제목을 입력하세요...">
+      </div>
+
+      <div class="header-actions">
+        <button id="btn-theme-toggle" class="btn btn-icon" title="테마 변경 (다크/라이트)">
+          <i class="fa-solid fa-moon"></i>
+        </button>
+        <button id="btn-clear" class="btn btn-secondary" title="새로 작성">
+          <i class="fa-solid fa-rotate-left"></i> 초기화
+        </button>
+        <button id="btn-copy-md" class="btn btn-primary-gradient" title="마크다운 전체 복사">
+          <i class="fa-solid fa-copy"></i> MD 복사
+        </button>
+        <button id="btn-export-md" class="btn btn-success" title="이미지가 내장된 .md 파일 다운로드">
+          <i class="fa-solid fa-file-arrow-down"></i> .md 다운로드
+        </button>
+      </div>
+    </header>
+
+    <!-- Preset Template Bar -->
+    <section class="template-bar">
+      <span class="template-label"><i class="fa-solid fa-wand-magic-sparkles"></i> 빠른 템플릿:</span>
+      <div class="template-buttons">
+        <button class="template-btn" data-template="bug"><i class="fa-solid fa-bug"></i> 버그 수정 요청</button>
+        <button class="template-btn" data-template="feature"><i class="fa-solid fa-rocket"></i> 신규 기능 요청</button>
+        <button class="template-btn" data-template="ui"><i class="fa-solid fa-palette"></i> UI/디자인 변경</button>
+        <button class="template-btn" data-template="refactor"><i class="fa-solid fa-code"></i> 코드 리팩토링</button>
+      </div>
+    </section>
+
+    <!-- Main Workspace -->
+    <main class="workspace">
+      <!-- Toolbar -->
+      <div class="editor-toolbar">
+        <div class="toolbar-group">
+          <button class="tb-btn" data-cmd="h1" title="제목 1 (Ctrl+1)"><b>H1</b></button>
+          <button class="tb-btn" data-cmd="h2" title="제목 2 (Ctrl+2)"><b>H2</b></button>
+          <button class="tb-btn" data-cmd="h3" title="제목 3 (Ctrl+3)"><b>H3</b></button>
+        </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group">
+          <button class="tb-btn" data-cmd="bold" title="굵게 (Ctrl+B)"><i class="fa-solid fa-bold"></i></button>
+          <button class="tb-btn" data-cmd="italic" title="기울임 (Ctrl+I)"><i class="fa-solid fa-italic"></i></button>
+          <button class="tb-btn" data-cmd="strikethrough" title="취소선"><i class="fa-solid fa-strikethrough"></i></button>
+        </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group">
+          <button class="tb-btn" data-cmd="ul" title="글머리 기호 목록"><i class="fa-solid fa-list-ul"></i></button>
+          <button class="tb-btn" data-cmd="ol" title="번호 목록"><i class="fa-solid fa-list-ol"></i></button>
+          <button class="tb-btn" data-cmd="task" title="체크리스트"><i class="fa-solid fa-square-check"></i></button>
+        </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group">
+          <button class="tb-btn" data-cmd="code" title="코드 블록"><i class="fa-solid fa-code"></i></button>
+
+          <button class="tb-btn" data-cmd="table" title="표 삽입"><i class="fa-solid fa-table"></i></button>
+        </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-group">
+          <label for="image-file-input" class="tb-btn" title="이미지 파일 첨부">
+            <i class="fa-solid fa-image"></i> 이미지 선택
+          </label>
+          <input type="file" id="image-file-input" accept="image/*" multiple style="display: none;">
+          <span class="paste-hint"><i class="fa-regular fa-clipboard"></i> 캡처 후 <b>Ctrl+V</b>로 바로 붙여넣기 지원</span>
+        </div>
+        <div class="toolbar-right">
+          <button id="btn-view-word" class="tb-btn" title="MS Word 스타일 용지 문서 편집 모드">
+            <i class="fa-solid fa-file-lines"></i> 워드 문서 모드
+          </button>
+          <button id="btn-toggle-view" class="tb-btn active" title="나란히 보기 / 편집 전용">
+            <i class="fa-solid fa-columns"></i> 분할 뷰
+          </button>
+        </div>
+      </div>
+
+      <!-- Editor & Preview Split Container -->
+      <div class="split-pane" id="split-pane">
+        <!-- Left: Editor Area -->
+        <div class="editor-area">
+          <div class="pane-header">
+            <span><i class="fa-solid fa-pen-to-square"></i> 편집기 (Markdown)</span>
+            <span class="char-count" id="char-count">0 자</span>
+          </div>
+          <textarea id="editor" class="editor-textarea" placeholder="여기에 내용을 입력하거나 스크린샷을 Ctrl+V 로 붙여넣으세요..."></textarea>
+          <div class="drop-overlay" id="drop-overlay">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <p>이미지를 이 곳에 놓으면 마크다운에 자동 삽입됩니다!</p>
+          </div>
+        </div>
+
+        <!-- Right: Live Preview Area -->
+        <div class="preview-area">
+          <div class="pane-header">
+            <span><i class="fa-solid fa-eye"></i> 실시간 미리보기 (렌더링 화면)</span>
+            <span class="image-count" id="image-count"><i class="fa-solid fa-image"></i> 이미지 0개</span>
+          </div>
+          <div id="preview" class="preview-content markdown-body"></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer Status Bar -->
+    <footer class="app-footer">
+      <div class="status-left">
+        <span class="status-indicator"><i class="fa-solid fa-circle-check"></i> 자동 저장됨</span>
+        <span id="save-time">방금 전</span>
+      </div>
+      <div class="status-right">
+        <span>이미지 자동 Base64 인코딩 지원</span>
+        <span>|</span>
+        <span>Antigravity IDE Tool</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Toast Notification System -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="js/templates.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

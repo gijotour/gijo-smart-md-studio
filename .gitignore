@@ -1,0 +1,12 @@
+# Dependencies
+node_modules/
+
+# OS / Temporary files
+.DS_Store
+Thumbs.db
+*.log
+
+# Build / Output folders
+dist/
+build/
+out/
