@@ -13,8 +13,17 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
+  <!-- Highlight.js CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+
   <!-- Marked Markdown Parser CDN -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- Highlight.js JS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+  <!-- Mermaid.js for Diagrams -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -26,7 +35,7 @@
         <i class="fa-solid fa-file-signature brand-icon"></i>
         <div class="brand-text">
           <h1>GIJO Smart MD Studio</h1>
-          <span class="badge">v1.0</span>
+          <span class="badge">v1.2</span>
         </div>
       </div>
 
@@ -46,6 +55,12 @@
         </button>
         <button id="btn-export-md" class="btn btn-success" title="이미지가 내장된 .md 파일 다운로드">
           <i class="fa-solid fa-file-arrow-down"></i> .md 다운로드
+        </button>
+        <button id="btn-export-html" class="btn btn-outline" title="독립 실행형 HTML 문서로 다운로드">
+          <i class="fa-solid fa-file-code"></i> HTML 내보내기
+        </button>
+        <button id="btn-export-pdf" class="btn btn-outline" title="PDF 저장 / A4 문서 인쇄">
+          <i class="fa-solid fa-print"></i> PDF/인쇄
         </button>
       </div>
     </header>
@@ -85,8 +100,9 @@
         <div class="toolbar-divider"></div>
         <div class="toolbar-group">
           <button class="tb-btn" data-cmd="code" title="코드 블록"><i class="fa-solid fa-code"></i></button>
-
-          <button class="tb-btn" data-cmd="table" title="표 삽입"><i class="fa-solid fa-table"></i></button>
+          <button id="btn-insert-details" class="tb-btn" title="접기/펼치기(Details) 블록 삽입"><i class="fa-solid fa-square-caret-down"></i> 접기 블록</button>
+          <button id="btn-table-modal" class="tb-btn" title="맞춤형 표 생성기"><i class="fa-solid fa-table"></i> 표 생성기</button>
+          <button id="btn-insert-mermaid" class="tb-btn" title="Mermaid 다이어그램 예시 삽입"><i class="fa-solid fa-diagram-project"></i> 다이어그램</button>
         </div>
         <div class="toolbar-divider"></div>
         <div class="toolbar-group">
@@ -94,9 +110,33 @@
             <i class="fa-solid fa-image"></i> 이미지 선택
           </label>
           <input type="file" id="image-file-input" accept="image/*" multiple style="display: none;">
-          <span class="paste-hint"><i class="fa-regular fa-clipboard"></i> 캡처 후 <b>Ctrl+V</b>로 바로 붙여넣기 지원</span>
+          <span class="paste-hint"><i class="fa-regular fa-clipboard"></i> 캡처 후 <b>Ctrl+V</b> 붙여넣기</span>
+          
+          <div class="img-resize-select-wrap" title="붙여넣는 이미지 최대 해상도 (자동 최적화)">
+            <i class="fa-solid fa-compress"></i>
+            <select id="select-img-maxwidth" class="tb-select">
+              <option value="0">원본 해상도</option>
+              <option value="1200" selected>최대 1200px (권장)</option>
+              <option value="800">최대 800px (경량)</option>
+              <option value="600">최대 600px (초경량)</option>
+            </select>
+          </div>
         </div>
         <div class="toolbar-right">
+          <!-- Density & Font Zoom Controls -->
+          <div class="view-size-controls">
+            <button id="btn-font-smaller" class="tb-btn btn-xs" title="글자 크기 줄이기"><i class="fa-solid fa-minus"></i> A</button>
+            <button id="btn-font-larger" class="tb-btn btn-xs" title="글자 크기 키우기"><i class="fa-solid fa-plus"></i> A</button>
+            <button id="btn-compact-mode" class="tb-btn" title="화면 컴팩트/여백 축소 모드 토글">
+              <i class="fa-solid fa-down-left-and-up-right-to-center"></i> 컴팩트
+            </button>
+          </div>
+          <button id="btn-toggle-search" class="tb-btn" title="찾기 및 바꾸기 (Ctrl+F)">
+            <i class="fa-solid fa-magnifying-glass"></i> 찾기/바꾸기
+          </button>
+          <button id="btn-toggle-outline" class="tb-btn" title="문서 목차 탐색기 열기/닫기">
+            <i class="fa-solid fa-list-check"></i> 목차
+          </button>
           <button id="btn-view-word" class="tb-btn" title="MS Word 스타일 용지 문서 편집 모드">
             <i class="fa-solid fa-file-lines"></i> 워드 문서 모드
           </button>
@@ -106,13 +146,50 @@
         </div>
       </div>
 
+      <!-- Search & Replace Bar (Hidden by default) -->
+      <div id="search-panel" class="search-panel hidden">
+        <div class="search-field">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="search-input" placeholder="찾을 단어 입력...">
+          <span id="search-count" class="search-count">0/0</span>
+        </div>
+        <div class="search-field">
+          <i class="fa-solid fa-pen"></i>
+          <input type="text" id="replace-input" placeholder="바꿀 단어 입력...">
+        </div>
+        <div class="search-buttons">
+          <button id="btn-find-next" class="btn btn-sm btn-secondary" title="다음 찾기"><i class="fa-solid fa-chevron-down"></i></button>
+          <button id="btn-find-prev" class="btn btn-sm btn-secondary" title="이전 찾기"><i class="fa-solid fa-chevron-up"></i></button>
+          <button id="btn-replace" class="btn btn-sm btn-secondary">바꾸기</button>
+          <button id="btn-replace-all" class="btn btn-sm btn-primary-gradient">모두 바꾸기</button>
+          <button id="btn-close-search" class="btn btn-sm btn-icon"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+      </div>
+
       <!-- Editor & Preview Split Container -->
       <div class="split-pane" id="split-pane">
+        <!-- Outline Side Drawer -->
+        <aside id="outline-drawer" class="outline-drawer hidden">
+          <div class="outline-header">
+            <span><i class="fa-solid fa-list-check"></i> 문서 목차 (TOC)</span>
+            <button id="btn-close-outline" class="btn-close-sm"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <ul id="outline-list" class="outline-list">
+            <li class="empty-outline">작성된 제목이 없습니다.</li>
+          </ul>
+        </aside>
+
         <!-- Left: Editor Area -->
         <div class="editor-area">
           <div class="pane-header">
             <span><i class="fa-solid fa-pen-to-square"></i> 편집기 (Markdown)</span>
-            <span class="char-count" id="char-count">0 자</span>
+            <div class="metrics-group">
+              <span class="char-count" id="word-count">0 단어</span>
+              <span>|</span>
+              <span class="char-count" id="char-count">0 자</span>
+              <span>|</span>
+              <span class="read-time" id="read-time"><i class="fa-regular fa-clock"></i> 1분 미만</span>
+            </div>
           </div>
           <textarea id="editor" class="editor-textarea" placeholder="여기에 내용을 입력하거나 스크린샷을 Ctrl+V 로 붙여넣으세요..."></textarea>
           <div class="drop-overlay" id="drop-overlay">
@@ -139,11 +216,40 @@
         <span id="save-time">방금 전</span>
       </div>
       <div class="status-right">
-        <span>이미지 자동 Base64 인코딩 지원</span>
+        <span>이미지 자동 Base64 &amp; 용지 레이아웃 지원</span>
         <span>|</span>
         <span>Antigravity IDE Tool</span>
       </div>
     </footer>
+  </div>
+
+  <!-- Table Generator Modal -->
+  <div id="modal-table" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-table"></i> 맞춤형 표 생성기</h3>
+        <button id="btn-close-table-modal" class="btn-close-sm"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="table-rows">행 수 (Rows):</label>
+          <input type="number" id="table-rows" value="3" min="1" max="50">
+        </div>
+        <div class="form-group">
+          <label for="table-cols">열 수 (Columns):</label>
+          <input type="number" id="table-cols" value="3" min="1" max="15">
+        </div>
+        <div class="form-group checkbox-group">
+          <label>
+            <input type="checkbox" id="table-header-check" checked> 첫 번째 행을 헤더(Header)로 사용
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-cancel-table" class="btn btn-secondary">취소</button>
+        <button id="btn-insert-table" class="btn btn-primary-gradient">표 삽입하기</button>
+      </div>
+    </div>
   </div>
 
   <!-- Toast Notification System -->

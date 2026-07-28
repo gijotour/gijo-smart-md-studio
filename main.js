@@ -1,6 +1,11 @@
 const { app, BrowserWindow, Menu, shell } = require('electron');
 const path = require('path');
 
+app.setName('GIJO Smart MD Studio');
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.gijo.smartmdstudio');
+}
+
 function createWindow() {
   const mainWindow = new BrowserWindow({
     width: 1300,

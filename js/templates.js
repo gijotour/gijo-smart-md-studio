@@ -19,6 +19,17 @@ const DOC_TEMPLATES = {
 ## 4. 기대하는 정상 동작
 - 모달창이 화면 중앙에 정렬되어야함
 - 닫기 버튼(X) 클릭 시 정상적으로 모달이 닫혀야 함
+
+<details>
+<summary>▶ 상세 오류 로그 및 스택 트레이스 (접기/펼치기)</summary>
+
+\`\`\`bash
+Error: Modal backdrop failed to render clean flex box
+    at ModalComponent.render (modal.js:42)
+    at HTMLButtonElement.dispatch (jquery.min.js:3)
+\`\`\`
+
+</details>
 `
   },
 
