@@ -905,3 +905,95 @@ textarea:focus-visible,
     row-gap: 6px;
   }
 }
+
+/* Image Annotation Editor */
+/* Only embedded images are annotatable — a remote image would taint the
+   canvas and make toDataURL throw, so it must not advertise itself as
+   clickable. */
+.preview-content img[src^="data:"] {
+  cursor: zoom-in;
+}
+
+.annotate-box {
+  max-width: min(1100px, 95vw);
+  width: auto;
+  max-height: 92vh;
+}
+
+.annotate-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--toolbar-bg);
+}
+
+.annotate-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+
+.annotate-colors {
+  display: flex;
+  gap: 6px;
+}
+
+.annotate-color {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 2px solid var(--border-color);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.annotate-color:hover {
+  transform: scale(1.1);
+}
+
+.annotate-color.active {
+  border-color: var(--accent-primary);
+  transform: scale(1.15);
+  box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4px var(--accent-primary);
+}
+
+.annotate-canvas-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background-color: var(--bg-primary);
+}
+
+#annotate-canvas {
+  max-width: 100%;
+  max-height: 68vh;
+  cursor: crosshair;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-md);
+  /* Checkerboard so transparent regions read as transparent, not as theme bg */
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
+    linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
+    linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  touch-action: none;
+}
+
+.annotate-hint {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}

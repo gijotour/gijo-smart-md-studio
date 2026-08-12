@@ -51,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let storageAvailable = true;
   let autoSaveTimer = null;
   let saveInFlight = null; // promise of the save currently being written, if any
+  let annotateHintShown = false;
   const lastSnapshotAt = {}; // docId -> timestamp
 
   // --- 2. Live Preview & Formatting ---
@@ -456,11 +457,74 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         showToast('이미지가 마크다운에 성공적으로 붙여넣어졌습니다!', 'success');
       }
+
+      // Annotation is only discoverable by clicking the preview image, so
+      // point it out once per session the first time an image goes in.
+      if (!annotateHintShown && window.GijoAnnotate) {
+        annotateHintShown = true;
+        setTimeout(() => showToast('미리보기의 이미지를 클릭하면 화살표·모자이크 등 주석을 추가할 수 있습니다.', 'info'), 1500);
+      }
     } catch (err) {
       console.error('Image processing failed', err);
       showToast('이미지 처리 중 오류가 발생했습니다.', 'warning');
     }
   }
+
+  // --- 5b. Image Annotation (click an embedded image in the preview) ---
+
+  // Replaces the n-th occurrence so that the same screenshot pasted twice
+  // annotates the copy that was actually clicked.
+  function replaceNthOccurrence(text, search, replacement, n) {
+    let idx = -1;
+    for (let i = 0; i <= n; i++) {
+      idx = text.indexOf(search, idx + 1);
+      if (idx === -1) return null;
+    }
+    return text.slice(0, idx) + replacement + text.slice(idx + search.length);
+  }
+
+  preview.addEventListener('click', async (e) => {
+    const img = e.target.closest('img');
+    if (!img || !window.GijoAnnotate) return;
+    const src = img.getAttribute('src') || '';
+    // Remote images would taint the canvas and make toDataURL throw.
+    if (!src.startsWith('data:')) return;
+
+    const sameSrc = Array.from(preview.querySelectorAll('img'))
+      .filter((el) => el.getAttribute('src') === src);
+    const occurrence = Math.max(0, sameSrc.indexOf(img));
+
+    // Pin to the document that was open when the editor was launched — the
+    // user can switch documents while annotating.
+    const targetDocId = currentDocId;
+    const edited = await GijoAnnotate.open(src);
+    if (!edited) return;
+
+    if (storageAvailable && targetDocId && targetDocId !== currentDocId) {
+      const doc = await GijoStorage.getDocument(targetDocId);
+      if (doc) {
+        const updated = replaceNthOccurrence(doc.content, src, edited, occurrence);
+        if (updated) {
+          await GijoStorage.updateDocumentContent(targetDocId, { title: doc.title, content: updated });
+          renderDocumentList();
+          showToast('문서가 전환되어 원래 문서의 이미지에 주석을 적용했습니다.', 'info');
+          return;
+        }
+      }
+      showToast('주석을 적용할 이미지를 찾지 못했습니다.', 'warning');
+      return;
+    }
+
+    const updated = replaceNthOccurrence(editor.value, src, edited, occurrence);
+    if (!updated) {
+      showToast('주석을 적용할 이미지를 찾지 못했습니다.', 'warning');
+      return;
+    }
+    editor.value = updated;
+    updatePreview();
+    scheduleAutoSave();
+    showToast('이미지에 주석이 적용되었습니다.', 'success');
+  });
 
   // Processed sequentially (not fired off in parallel) — concurrent
   // FileReader/canvas callbacks each call insertAtCursor, which reads the
