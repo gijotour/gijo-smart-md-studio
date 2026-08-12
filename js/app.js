@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const imageFileInput = document.getElementById('image-file-input');
   const appBody = document.getElementById('app-body');
   const documentListEl = document.getElementById('document-list');
+  const docSearchInput = document.getElementById('doc-search');
   const exportMenu = document.getElementById('export-menu');
   const historyModal = document.getElementById('history-modal');
   const historyList = document.getElementById('history-list');
@@ -280,12 +281,65 @@ document.addEventListener('DOMContentLoaded', () => {
     return btn;
   }
 
+  // Embedded base64 blobs would otherwise match arbitrary queries and swamp
+  // any snippet, so they are collapsed before searching or excerpting.
+  function stripDataUrls(text) {
+    return text.replace(/data:image\/[a-z+.-]+;base64,[A-Za-z0-9+/=]+/gi, '[이미지]');
+  }
+
+  // Builds highlighted text as DOM nodes — never innerHTML, since both the
+  // query and the document content are user-controlled.
+  function renderHighlighted(el, text, query) {
+    el.textContent = '';
+    if (!query) { el.textContent = text; return; }
+    const haystack = text.toLowerCase();
+    const needle = query.toLowerCase();
+    let from = 0;
+    for (;;) {
+      const idx = haystack.indexOf(needle, from);
+      if (idx === -1) { el.appendChild(document.createTextNode(text.slice(from))); return; }
+      if (idx > from) el.appendChild(document.createTextNode(text.slice(from, idx)));
+      const mark = document.createElement('mark');
+      mark.textContent = text.slice(idx, idx + needle.length);
+      el.appendChild(mark);
+      from = idx + needle.length;
+    }
+  }
+
+  function buildSnippet(plainContent, query) {
+    const idx = plainContent.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return '';
+    const start = Math.max(0, idx - 24);
+    const raw = plainContent.slice(start, start + 90).replace(/\s+/g, ' ').trim();
+    return (start > 0 ? '…' : '') + raw + (start + 90 < plainContent.length ? '…' : '');
+  }
+
   async function renderDocumentList() {
     if (!storageAvailable) return;
-    const docs = await GijoStorage.getAllDocuments();
-    documentListEl.innerHTML = '';
+    const query = (docSearchInput.value || '').trim();
+    const all = await GijoStorage.getAllDocuments();
 
-    docs.forEach((doc) => {
+    const rows = [];
+    for (const doc of all) {
+      if (!query) { rows.push({ doc, snippet: '' }); continue; }
+      const q = query.toLowerCase();
+      const titleHit = (doc.title || '').toLowerCase().includes(q);
+      const plain = stripDataUrls(doc.content || '');
+      const bodyHit = plain.toLowerCase().includes(q);
+      if (!titleHit && !bodyHit) continue;
+      rows.push({ doc, snippet: bodyHit ? buildSnippet(plain, query) : '' });
+    }
+
+    documentListEl.innerHTML = '';
+    if (!rows.length) {
+      const empty = document.createElement('div');
+      empty.className = 'document-list-empty';
+      empty.textContent = '검색 결과가 없습니다.';
+      documentListEl.appendChild(empty);
+      return;
+    }
+
+    rows.forEach(({ doc, snippet }) => {
       const item = document.createElement('div');
       item.className = 'document-item' + (doc.id === currentDocId ? ' active' : '');
       item.dataset.docId = doc.id;
@@ -294,11 +348,17 @@ document.addEventListener('DOMContentLoaded', () => {
       info.className = 'document-item-info';
       const titleEl = document.createElement('div');
       titleEl.className = 'document-item-title';
-      titleEl.textContent = doc.title || '제목 없는 문서';
+      renderHighlighted(titleEl, doc.title || '제목 없는 문서', query);
       const metaEl = document.createElement('div');
       metaEl.className = 'document-item-meta';
       metaEl.textContent = `${formatRelativeTime(doc.updatedAt)} · 이미지 ${doc.imageCount}개`;
       info.appendChild(titleEl);
+      if (snippet) {
+        const snippetEl = document.createElement('div');
+        snippetEl.className = 'document-item-snippet';
+        renderHighlighted(snippetEl, snippet, query);
+        info.appendChild(snippetEl);
+      }
       info.appendChild(metaEl);
 
       const actions = document.createElement('div');
@@ -769,6 +829,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnNewDoc.addEventListener('click', () => createNewDocument());
 
+  // Debounced so typing doesn't re-scan every document's content per keystroke.
+  let searchTimer = null;
+  docSearchInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(renderDocumentList, 180);
+  });
+  docSearchInput.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !docSearchInput.value) return;
+    e.stopPropagation(); // don't also close dropdowns/modals
+    docSearchInput.value = '';
+    renderDocumentList();
+  });
+
   // --- 9b. Backup / Restore / Markdown Import ---
   function requireLibrary() {
     if (storageAvailable) return true;
@@ -898,6 +971,36 @@ document.addEventListener('DOMContentLoaded', () => {
       btnToggleView.classList.remove('active');
       showToast('MS Word 스타일 문서 편집 모드로 전환되었습니다.', 'info');
     }
+  });
+
+  // --- 10b. Split-View Scroll Sync ---
+  //
+  // Proportional rather than line-mapped: a rendered image occupies one line
+  // of markdown but a large block of preview, so matching scroll *fractions*
+  // tracks far better than trying to pair source lines to rendered nodes.
+  let syncingScroll = false;
+
+  function syncScroll(from, to) {
+    if (syncingScroll) return;
+    const fromMax = from.scrollHeight - from.clientHeight;
+    const toMax = to.scrollHeight - to.clientHeight;
+    if (fromMax <= 0 || toMax <= 0) return;
+    syncingScroll = true;
+    to.scrollTop = (from.scrollTop / fromMax) * toMax;
+    // Released next frame — assigning scrollTop fires the other pane's
+    // scroll event, which would otherwise bounce straight back.
+    requestAnimationFrame(() => { syncingScroll = false; });
+  }
+
+  function splitViewActive() {
+    return !splitPane.classList.contains('editor-only') && !splitPane.classList.contains('word-mode');
+  }
+
+  editor.addEventListener('scroll', () => {
+    if (splitViewActive()) syncScroll(editor, preview);
+  });
+  preview.addEventListener('scroll', () => {
+    if (splitViewActive()) syncScroll(preview, editor);
   });
 
   // --- 11. Theme Toggle ---
