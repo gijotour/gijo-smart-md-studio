@@ -210,11 +210,9 @@ body {
 }
 
 .brand-icon {
-  font-size: 1.8rem;
-  color: var(--accent-primary);
-  background: var(--accent-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
 }
 
 .brand-text h1 {

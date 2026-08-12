@@ -1,6 +1,6 @@
 {
   "name": "gijo-smart-md-studio",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "GIJO Smart MD Studio - 이미지가 들어가는 마크다운(MD) 전용 문서 작성기",
   "main": "main.js",
   "scripts": {
@@ -32,6 +32,7 @@
       "preload.js",
       "index.html",
       "icon.png",
+      "assets/**/*",
       "css/**/*",
       "js/**/*",
       "vendor/**/*",
