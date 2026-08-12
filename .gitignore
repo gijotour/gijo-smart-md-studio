@@ -6,7 +6,7 @@ node_modules/
 Thumbs.db
 *.log
 
-# Build / Output folders
+# electron-builder output (NOT build/ — that holds committed source icons
+# electron-builder reads from, per its own convention)
 dist/
-build/
 out/
