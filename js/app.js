@@ -37,6 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- 1. State ---
   const STORAGE_KEY_THEME = 'gijo_md_studio_theme';
+  const STORAGE_KEY_SIDEBAR_COLLAPSED = 'gijo_md_studio_sidebar_collapsed';
+  const SIDEBAR_AUTO_COLLAPSE_WIDTH = 860; // matches the CSS breakpoint in style.css
   const LEGACY_KEY_CONTENT = 'gijo_md_studio_content';
   const LEGACY_KEY_TITLE = 'gijo_md_studio_title';
   const SNAPSHOT_MIN_INTERVAL_MS = 5 * 60 * 1000; // at most one history snapshot per 5 min of active editing
@@ -533,6 +535,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    exportMenu.classList.remove('open');
+    btnExportToggle.setAttribute('aria-expanded', 'false');
+    historyModal.classList.remove('open');
+  });
+
   btnCopyMd.addEventListener('click', () => {
     const content = editor.value;
     if (!content.trim()) {
@@ -558,8 +567,21 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // --- 9. Sidebar ---
+  function setSidebarCollapsed(collapsed) {
+    appBody.classList.toggle('sidebar-collapsed', collapsed);
+    btnSidebarToggle.setAttribute('aria-expanded', String(!collapsed));
+  }
+
+  function loadSidebarState() {
+    const saved = localStorage.getItem(STORAGE_KEY_SIDEBAR_COLLAPSED);
+    const collapsed = saved !== null ? saved === '1' : window.innerWidth <= SIDEBAR_AUTO_COLLAPSE_WIDTH;
+    setSidebarCollapsed(collapsed);
+  }
+
   btnSidebarToggle.addEventListener('click', () => {
-    appBody.classList.toggle('sidebar-collapsed');
+    const collapsed = !appBody.classList.contains('sidebar-collapsed');
+    setSidebarCollapsed(collapsed);
+    localStorage.setItem(STORAGE_KEY_SIDEBAR_COLLAPSED, collapsed ? '1' : '0');
   });
 
   btnNewDoc.addEventListener('click', () => createNewDocument());
@@ -664,6 +686,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- 15. Init ---
   async function initApp() {
     loadTheme();
+    loadSidebarState();
     setupMenuCommandListener();
 
     await GijoStorage.runMigrationIfNeeded();

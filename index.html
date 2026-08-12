@@ -21,7 +21,7 @@
   <div id="app" class="app-container">
     <!-- Header -->
     <header class="app-header">
-      <button id="btn-sidebar-toggle" class="btn btn-icon" title="문서함 열기/닫기">
+      <button id="btn-sidebar-toggle" class="btn btn-icon" title="문서함 열기/닫기" aria-label="문서함 열기/닫기" aria-expanded="true" aria-controls="doc-sidebar">
         <i class="fa-solid fa-bars"></i>
       </button>
       <div class="brand">
@@ -37,7 +37,7 @@
       </div>
 
       <div class="header-actions">
-        <button id="btn-theme-toggle" class="btn btn-icon" title="테마 변경 (다크/라이트)">
+        <button id="btn-theme-toggle" class="btn btn-icon" title="테마 변경 (다크/라이트)" aria-label="테마 변경">
           <i class="fa-solid fa-moon"></i>
         </button>
         <button id="btn-clear" class="btn btn-secondary" title="새로 작성">
@@ -92,21 +92,21 @@
         </div>
         <div class="toolbar-divider"></div>
         <div class="toolbar-group">
-          <button class="tb-btn" data-cmd="bold" title="굵게 (Ctrl+B)"><i class="fa-solid fa-bold"></i></button>
-          <button class="tb-btn" data-cmd="italic" title="기울임 (Ctrl+I)"><i class="fa-solid fa-italic"></i></button>
-          <button class="tb-btn" data-cmd="strikethrough" title="취소선"><i class="fa-solid fa-strikethrough"></i></button>
+          <button class="tb-btn" data-cmd="bold" title="굵게 (Ctrl+B)" aria-label="굵게"><i class="fa-solid fa-bold"></i></button>
+          <button class="tb-btn" data-cmd="italic" title="기울임 (Ctrl+I)" aria-label="기울임"><i class="fa-solid fa-italic"></i></button>
+          <button class="tb-btn" data-cmd="strikethrough" title="취소선" aria-label="취소선"><i class="fa-solid fa-strikethrough"></i></button>
         </div>
         <div class="toolbar-divider"></div>
         <div class="toolbar-group">
-          <button class="tb-btn" data-cmd="ul" title="글머리 기호 목록"><i class="fa-solid fa-list-ul"></i></button>
-          <button class="tb-btn" data-cmd="ol" title="번호 목록"><i class="fa-solid fa-list-ol"></i></button>
-          <button class="tb-btn" data-cmd="task" title="체크리스트"><i class="fa-solid fa-square-check"></i></button>
+          <button class="tb-btn" data-cmd="ul" title="글머리 기호 목록" aria-label="글머리 기호 목록"><i class="fa-solid fa-list-ul"></i></button>
+          <button class="tb-btn" data-cmd="ol" title="번호 목록" aria-label="번호 목록"><i class="fa-solid fa-list-ol"></i></button>
+          <button class="tb-btn" data-cmd="task" title="체크리스트" aria-label="체크리스트"><i class="fa-solid fa-square-check"></i></button>
         </div>
         <div class="toolbar-divider"></div>
         <div class="toolbar-group">
-          <button class="tb-btn" data-cmd="code" title="코드 블록"><i class="fa-solid fa-code"></i></button>
+          <button class="tb-btn" data-cmd="code" title="코드 블록" aria-label="코드 블록"><i class="fa-solid fa-code"></i></button>
 
-          <button class="tb-btn" data-cmd="table" title="표 삽입"><i class="fa-solid fa-table"></i></button>
+          <button class="tb-btn" data-cmd="table" title="표 삽입" aria-label="표 삽입"><i class="fa-solid fa-table"></i></button>
         </div>
         <div class="toolbar-divider"></div>
         <div class="toolbar-group">
