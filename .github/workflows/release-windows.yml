@@ -33,12 +33,16 @@ jobs:
         shell: bash
         run: npm run build:win 2>&1 | tee build-win.log
 
-      - name: Upload build log (only if the build step failed)
+      - name: Push build log to debug branch on failure
         if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-win-log
-          path: build-win.log
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b ci-debug-logs
+          git add -f build-win.log
+          git commit -m "CI debug log: run ${{ github.run_id }}"
+          git push origin ci-debug-logs --force
 
       - name: Resolve release tag
         id: tag
