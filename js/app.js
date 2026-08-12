@@ -63,9 +63,11 @@ document.addEventListener('DOMContentLoaded', () => {
   function updatePreview() {
     const text = editor.value;
     
-    // Render Markdown to HTML
+    // Render Markdown to HTML (sanitized — this is the single call site every
+    // export path reads from, so nothing downstream needs to sanitize again)
     if (window.marked) {
-      preview.innerHTML = marked.parse(text);
+      const rawHtml = marked.parse(text);
+      preview.innerHTML = window.DOMPurify ? DOMPurify.sanitize(rawHtml) : rawHtml;
     } else {
       preview.innerText = text;
     }
