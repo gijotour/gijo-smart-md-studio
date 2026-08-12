@@ -23,9 +23,22 @@ jobs:
         with:
           node-version: 20
 
+      - name: Exclude workspace from Windows Defender scanning
+        shell: powershell
+        run: Add-MpPreference -ExclusionPath "${{ github.workspace }}"
+
       - run: npm ci
 
-      - run: npm run build:win
+      - name: Build Windows installer
+        shell: bash
+        run: npm run build:win 2>&1 | tee build-win.log
+
+      - name: Upload build log (only if the build step failed)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-win-log
+          path: build-win.log
 
       - name: Resolve release tag
         id: tag
