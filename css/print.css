@@ -1,0 +1,139 @@
+/* Print & standalone-HTML-export stylesheet.
+ * Two consumers, one file:
+ *   1. Linked as <link media="print"> in index.html — scoped to print
+ *      automatically by the media attribute, used by both window.print()
+ *      and Electron's printToPDF (which renders as-if-printing).
+ *   2. Its raw text is fetched and inlined into the standalone document
+ *      produced by HTML export, where it applies unconditionally — there is
+ *      no app theme in that document, so nothing to scope against.
+ * Self-contained: hardcodes the light-theme palette rather than relying on
+ * style.css's custom properties, since the HTML-export document never loads
+ * style.css at all.
+ */
+
+body {
+  margin: 0;
+  padding: 24px 32px;
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", Roboto, sans-serif;
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+/* Chrome hidden when printing the live app page. No-ops in the standalone
+   HTML export doc, since none of these elements exist there. */
+.app-header, .template-bar, .app-footer, #toast-container,
+.editor-area, #doc-sidebar, .editor-toolbar, .modal-overlay {
+  display: none !important;
+}
+
+.app-container, .app-body, .workspace, .split-pane, .preview-area {
+  display: block !important;
+  height: auto !important;
+  overflow: visible !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+.preview-content, #preview {
+  padding: 0 !important;
+}
+
+.markdown-body {
+  color: #0f172a;
+}
+
+.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 {
+  margin-top: 1.4em;
+  margin-bottom: 0.6em;
+  font-weight: 700;
+  line-height: 1.3;
+  color: #0f172a;
+  page-break-after: avoid;
+}
+
+.markdown-body h1 {
+  font-size: 1.8rem;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 0.3em;
+}
+
+.markdown-body h2 {
+  font-size: 1.4rem;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.3em;
+}
+
+.markdown-body h3 { font-size: 1.15rem; }
+
+.markdown-body p { margin-bottom: 1em; }
+
+.markdown-body ul, .markdown-body ol {
+  padding-left: 2em;
+  margin-bottom: 1em;
+}
+
+.markdown-body blockquote {
+  padding: 10px 16px;
+  margin: 1em 0;
+  color: #475569;
+  border-left: 4px solid #4f46e5;
+  background-color: #f1f5f9;
+  border-radius: 0 8px 8px 0;
+}
+
+.markdown-body pre {
+  background-color: #1e293b;
+  color: #f8fafc;
+  padding: 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin-bottom: 1em;
+  border: 1px solid #e2e8f0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.markdown-body code {
+  font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, "D2Coding", "Noto Sans Mono", monospace;
+  font-size: 0.88em;
+  background-color: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.markdown-body pre code {
+  background-color: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.markdown-body img {
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  margin: 1em 0;
+  display: block;
+  page-break-inside: avoid;
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1em;
+  page-break-inside: avoid;
+}
+
+.markdown-body table th, .markdown-body table td {
+  padding: 8px 14px;
+  border: 1px solid #e2e8f0;
+}
+
+.markdown-body table th {
+  background-color: #f1f5f9;
+  font-weight: 600;
+}

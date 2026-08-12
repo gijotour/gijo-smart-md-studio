@@ -1,11 +1,14 @@
 {
   "name": "gijo-smart-md-studio",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "GIJO Smart MD Studio - 이미지가 들어가는 마크다운(MD) 전용 문서 작성기",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win"
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
   },
   "keywords": [
     "markdown",
@@ -17,6 +20,36 @@
   "author": "GIJO",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^33.4.11"
+    "electron": "^33.4.11",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.gijo.smartmdstudio",
+    "productName": "GIJO Smart MD Studio",
+    "icon": "build/icon.png",
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "icon.png",
+      "css/**/*",
+      "js/**/*",
+      "vendor/**/*",
+      "!vendor/VERSIONS.md"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": ["nsis"]
+    },
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Office"
+    }
   }
 }

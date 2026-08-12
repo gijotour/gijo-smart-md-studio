@@ -1,0 +1,26 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#a855f7"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1024" height="1024" rx="200" fill="url(#bg)"/>
+
+  <!-- Document with folded corner -->
+  <g transform="translate(262, 170)">
+    <path d="M0,40 Q0,0 40,0 L330,0 L440,110 L440,610 Q440,650 400,650 L40,650 Q0,650 0,610 Z" fill="#ffffff"/>
+    <path d="M330,0 L440,110 L370,110 Q330,110 330,70 Z" fill="#dbe1f5"/>
+    <rect x="68" y="210" width="304" height="28" rx="14" fill="#c7d2fe"/>
+    <rect x="68" y="284" width="304" height="28" rx="14" fill="#c7d2fe"/>
+    <rect x="68" y="358" width="190" height="28" rx="14" fill="#c7d2fe"/>
+  </g>
+
+  <!-- Pencil, crossing the document diagonally -->
+  <g transform="translate(535, 585) rotate(-45)">
+    <rect x="-10" y="-32" width="300" height="64" rx="16" fill="#fbbf24"/>
+    <rect x="-10" y="-32" width="34" height="64" fill="#f59e0b"/>
+    <path d="M290,-32 L340,0 L290,32 Z" fill="#1e293b"/>
+  </g>
+</svg>

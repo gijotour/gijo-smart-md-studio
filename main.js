@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 
 function createWindow() {
@@ -12,19 +12,34 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
+      preload: path.join(__dirname, 'preload.js'),
     }
   });
 
   // Load index.html
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
-  // Custom Minimal Menu Bar
+  // Menu items dispatch a named command to the renderer over IPC rather than
+  // eval'ing a DOM click — needed now that "내보내기" is a dropdown with no
+  // single element to click, and a cleaner pattern than string-eval anyway.
+  const sendCommand = (cmd) => mainWindow.webContents.send('menu:command', cmd);
+
   const template = [
     {
       label: '파일 (File)',
       submenu: [
-        { label: '새 문서', accelerator: 'CmdOrCtrl+N', click: () => { mainWindow.webContents.executeJavaScript('document.getElementById("btn-clear").click();'); } },
-        { label: 'MD 파일 다운로드', accelerator: 'CmdOrCtrl+S', click: () => { mainWindow.webContents.executeJavaScript('document.getElementById("btn-export-md").click();'); } },
+        { label: '새 문서', accelerator: 'CmdOrCtrl+N', click: () => sendCommand('new-doc') },
+        { type: 'separator' },
+        {
+          label: '내보내기 (Export)',
+          submenu: [
+            { label: 'Markdown (.md)', accelerator: 'CmdOrCtrl+S', click: () => sendCommand('export-md') },
+            { label: 'HTML (.html)', click: () => sendCommand('export-html') },
+            { label: 'PDF (.pdf)', click: () => sendCommand('export-pdf') },
+            { label: 'Word (.docx)', click: () => sendCommand('export-docx') },
+          ]
+        },
         { type: 'separator' },
         { label: '종료', role: 'quit' }
       ]
@@ -44,8 +59,8 @@ function createWindow() {
     {
       label: '보기 (View)',
       submenu: [
-        { label: '워드 문서 모드', click: () => { mainWindow.webContents.executeJavaScript('document.getElementById("btn-view-word").click();'); } },
-        { label: '나란히 보기 (분할 뷰)', click: () => { mainWindow.webContents.executeJavaScript('document.getElementById("btn-toggle-view").click();'); } },
+        { label: '워드 문서 모드', click: () => sendCommand('word-mode') },
+        { label: '나란히 보기 (분할 뷰)', click: () => sendCommand('toggle-view') },
         { type: 'separator' },
         { label: '화면 확대', role: 'zoomIn' },
         { label: '화면 축소', role: 'zoomOut' },
@@ -59,6 +74,21 @@ function createWindow() {
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);
 }
+
+// PDF export: renders the current page as-if-printing (respects
+// css/print.css's @media print rules) and returns the bytes for the
+// renderer to hand off to the same blob-download path used by every other
+// export format.
+ipcMain.handle('export:print-to-pdf', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const buffer = await win.webContents.printToPDF({});
+  // printToPDF resolves a Node Buffer; hand back a plain Uint8Array instead
+  // of the raw Buffer — cloning a Buffer across contextBridge/invoke's
+  // structured-clone boundary has been an unreliable edge in some Electron
+  // versions (silently never resolving on the renderer side rather than
+  // throwing), while a plain typed array is unambiguous to clone.
+  return new Uint8Array(buffer);
+});
 
 app.whenReady().then(() => {
   createWindow();

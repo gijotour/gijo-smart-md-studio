@@ -5,28 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GIJO Smart MD Studio - 이미지가 들어가는 마크다운(MD) 전용 문서 작성기</title>
 
-  <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
-  
-  <!-- FontAwesome Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Font Awesome Icons (vendored locally — see vendor/VERSIONS.md) -->
+  <link rel="stylesheet" href="vendor/fontawesome/css/fontawesome.min.css">
+  <link rel="stylesheet" href="vendor/fontawesome/css/solid.min.css">
+  <link rel="stylesheet" href="vendor/fontawesome/css/regular.min.css">
 
-  <!-- Marked Markdown Parser CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- Markdown parser + HTML sanitizer (vendored locally — see vendor/VERSIONS.md) -->
+  <script src="vendor/marked/marked.js"></script>
+  <script src="vendor/dompurify/purify.min.js"></script>
 
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/print.css" media="print">
 </head>
 <body>
   <div id="app" class="app-container">
     <!-- Header -->
     <header class="app-header">
+      <button id="btn-sidebar-toggle" class="btn btn-icon" title="문서함 열기/닫기" aria-label="문서함 열기/닫기" aria-expanded="true" aria-controls="doc-sidebar">
+        <i class="fa-solid fa-bars"></i>
+      </button>
       <div class="brand">
         <i class="fa-solid fa-file-signature brand-icon"></i>
         <div class="brand-text">
           <h1>GIJO Smart MD Studio</h1>
-          <span class="badge">v1.0</span>
+          <span class="badge">v2.0</span>
         </div>
       </div>
 
@@ -35,7 +37,7 @@
       </div>
 
       <div class="header-actions">
-        <button id="btn-theme-toggle" class="btn btn-icon" title="테마 변경 (다크/라이트)">
+        <button id="btn-theme-toggle" class="btn btn-icon" title="테마 변경 (다크/라이트)" aria-label="테마 변경">
           <i class="fa-solid fa-moon"></i>
         </button>
         <button id="btn-clear" class="btn btn-secondary" title="새로 작성">
@@ -44,9 +46,17 @@
         <button id="btn-copy-md" class="btn btn-primary-gradient" title="마크다운 전체 복사">
           <i class="fa-solid fa-copy"></i> MD 복사
         </button>
-        <button id="btn-export-md" class="btn btn-success" title="이미지가 내장된 .md 파일 다운로드">
-          <i class="fa-solid fa-file-arrow-down"></i> .md 다운로드
-        </button>
+        <div class="dropdown" id="export-dropdown">
+          <button id="btn-export-toggle" class="btn btn-success" title="내보내기" aria-haspopup="true" aria-expanded="false">
+            <i class="fa-solid fa-file-export"></i> 내보내기 <i class="fa-solid fa-caret-down"></i>
+          </button>
+          <div class="dropdown-menu" id="export-menu">
+            <button class="dropdown-item" data-export="md"><i class="fa-solid fa-file-lines"></i> Markdown (.md)</button>
+            <button class="dropdown-item" data-export="html"><i class="fa-solid fa-file-code"></i> HTML (.html)</button>
+            <button class="dropdown-item" data-export="pdf"><i class="fa-solid fa-file-pdf"></i> PDF (.pdf)</button>
+            <button class="dropdown-item" data-export="docx"><i class="fa-solid fa-file-word"></i> Word (.docx)</button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -61,6 +71,16 @@
       </div>
     </section>
 
+    <div class="app-body" id="app-body">
+      <!-- Document Library Sidebar -->
+      <aside class="doc-sidebar" id="doc-sidebar">
+        <button id="btn-new-doc" class="btn btn-primary-gradient sidebar-new-btn">
+          <i class="fa-solid fa-plus"></i> 새 문서
+        </button>
+        <div class="sidebar-section-label"><i class="fa-solid fa-folder-open"></i> 문서함</div>
+        <div id="document-list" class="document-list"></div>
+      </aside>
+
     <!-- Main Workspace -->
     <main class="workspace">
       <!-- Toolbar -->
@@ -72,21 +92,21 @@
         </div>
         <div class="toolbar-divider"></div>
         <div class="toolbar-group">
-          <button class="tb-btn" data-cmd="bold" title="굵게 (Ctrl+B)"><i class="fa-solid fa-bold"></i></button>
-          <button class="tb-btn" data-cmd="italic" title="기울임 (Ctrl+I)"><i class="fa-solid fa-italic"></i></button>
-          <button class="tb-btn" data-cmd="strikethrough" title="취소선"><i class="fa-solid fa-strikethrough"></i></button>
+          <button class="tb-btn" data-cmd="bold" title="굵게 (Ctrl+B)" aria-label="굵게"><i class="fa-solid fa-bold"></i></button>
+          <button class="tb-btn" data-cmd="italic" title="기울임 (Ctrl+I)" aria-label="기울임"><i class="fa-solid fa-italic"></i></button>
+          <button class="tb-btn" data-cmd="strikethrough" title="취소선" aria-label="취소선"><i class="fa-solid fa-strikethrough"></i></button>
         </div>
         <div class="toolbar-divider"></div>
         <div class="toolbar-group">
-          <button class="tb-btn" data-cmd="ul" title="글머리 기호 목록"><i class="fa-solid fa-list-ul"></i></button>
-          <button class="tb-btn" data-cmd="ol" title="번호 목록"><i class="fa-solid fa-list-ol"></i></button>
-          <button class="tb-btn" data-cmd="task" title="체크리스트"><i class="fa-solid fa-square-check"></i></button>
+          <button class="tb-btn" data-cmd="ul" title="글머리 기호 목록" aria-label="글머리 기호 목록"><i class="fa-solid fa-list-ul"></i></button>
+          <button class="tb-btn" data-cmd="ol" title="번호 목록" aria-label="번호 목록"><i class="fa-solid fa-list-ol"></i></button>
+          <button class="tb-btn" data-cmd="task" title="체크리스트" aria-label="체크리스트"><i class="fa-solid fa-square-check"></i></button>
         </div>
         <div class="toolbar-divider"></div>
         <div class="toolbar-group">
-          <button class="tb-btn" data-cmd="code" title="코드 블록"><i class="fa-solid fa-code"></i></button>
+          <button class="tb-btn" data-cmd="code" title="코드 블록" aria-label="코드 블록"><i class="fa-solid fa-code"></i></button>
 
-          <button class="tb-btn" data-cmd="table" title="표 삽입"><i class="fa-solid fa-table"></i></button>
+          <button class="tb-btn" data-cmd="table" title="표 삽입" aria-label="표 삽입"><i class="fa-solid fa-table"></i></button>
         </div>
         <div class="toolbar-divider"></div>
         <div class="toolbar-group">
@@ -131,6 +151,7 @@
         </div>
       </div>
     </main>
+    </div>
 
     <!-- Footer Status Bar -->
     <footer class="app-footer">
@@ -147,9 +168,24 @@
   </div>
 
   <!-- Toast Notification System -->
-  <div id="toast-container" class="toast-container"></div>
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
 
+  <!-- Version History Modal -->
+  <div class="modal-overlay" id="history-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <span><i class="fa-solid fa-clock-rotate-left"></i> 버전 히스토리</span>
+        <button id="btn-history-close" class="btn btn-icon" title="닫기"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="history-list" class="history-list"></div>
+    </div>
+  </div>
+
+  <script src="vendor/html-to-docx/polyfills.js"></script>
+  <script src="vendor/html-to-docx/html-to-docx.browser.js"></script>
   <script src="js/templates.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/export.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
