@@ -4,7 +4,7 @@
 
 # GIJO Smart MD Studio (마크다운 MD 전용 문서 작성기) 📝
 
-![Version](https://img.shields.io/badge/version-2.0.2-blue.svg)
+![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Electron](https://img.shields.io/badge/Electron-33.x-47848F.svg)
 
@@ -17,7 +17,10 @@
 - 📄 **MS Word 스타일 문서 편집 (`[워드 문서 모드]`)**: A4 용지 스타일의 레이아웃에서 여백과 서식을 보며 편안하게 작성
 - 📋 **클립보드 스크린샷 붙여넣기 (`Ctrl + V`)**: 화면 캡처 후 `Ctrl + V` 누르면 **자동 압축 후 Base64 이미지로 즉시 문서 삽입** (불투명 이미지는 JPEG로, 투명 배경이 있는 이미지는 PNG로 자동 선택되어 원본 대비 용량이 크게 줄어듭니다)
 - 🖼 **이미지 드래그 & 드롭 지원**: 컴퓨터 내 사진 파일 드래그 앤 드롭 삽입 (다중 파일 지원)
+- ✏️ **이미지 주석 도구**: 미리보기의 이미지를 클릭하면 **화살표 · 사각형 · 텍스트 · 모자이크**를 그려 넣을 수 있습니다. 고객 개인정보를 모자이크로 가린 뒤 공유할 수 있어 버그 리포트에 특히 유용합니다
 - 🗂 **문서함 & 버전 히스토리**: 여러 문서를 사이드바에서 관리(생성/전환/복제/삭제)하고, 편집 중 자동으로 쌓이는 버전 스냅샷을 언제든 복원 가능
+- 🔍 **문서함 검색**: 제목과 본문을 실시간으로 검색하고 일치 부분을 하이라이트 표시
+- 💾 **백업 / 복원 & 가져오기**: 문서함 전체를 파일 하나로 백업하고 복원(기존 문서는 보존, 중복은 건너뜀). 기존 `.md` 파일도 드래그하거나 버튼으로 가져오기 가능
 - 📤 **다양한 형식으로 내보내기**:
   - `[MD 복사]`: 마크다운 전체 내용 클립보드 복사 (LLM / ChatGPT / Claude / GitHub 전송용)
   - **Markdown (.md)**: 이미지가 내장된 단일 파일
@@ -26,13 +29,15 @@
   - **Word (.docx)**: 구조(제목/목록/표/이미지)가 보존된 워드 문서 (색상 등 세부 스타일은 단순화됨)
 - 🎨 **프리미엄 테마 & 자동 저장**: 다크 모드 / 라이트 모드 전환 및 IndexedDB 기반 자동 저장
 - 🖥 **웹 & 데스크톱 앱 겸용**: 브라우저(Web) 및 Electron 데스크톱 앱(Desktop App) 지원, 오프라인에서도 완전히 동작
+- 🔄 **자동 업데이트**: 데스크톱 앱은 새 버전이 릴리즈되면 자동으로 내려받고, 재시작 여부를 물어봅니다
+- ⌨️ **단축키**: `Ctrl+B` 굵게, `Ctrl+I` 기울임, `Ctrl+1~3` 제목 (제목 단축키는 데스크톱 앱 전용 — 브라우저가 탭 전환에 선점)
 - ♿ **접근성 & 반응형**: 키보드 포커스 표시, 아이콘 버튼 라벨, 좁은 화면에서도 무너지지 않는 레이아웃
 
 ---
 
 ## ⚠️ Windows에서 설치 시 안내
 
-[Releases](https://github.com/gijotour/gijo-smart-md-studio/releases)에서 받은 설치 파일(`GIJO Smart MD Studio Setup x.x.x.exe`)은 아직 **코드 서명이 되어 있지 않습니다**. 코드 서명 인증서는 유료이며 신원 확인 절차가 필요해 아직 적용하지 못했습니다 (예정 — SignPath.io 무료 오픈소스 서명 또는 유료 인증서 검토 중). 그래서 설치 시 다음과 같은 경고가 뜰 수 있습니다:
+[Releases](https://github.com/gijotour/gijo-smart-md-studio/releases)에서 받은 설치 파일은 아직 **코드 서명이 되어 있지 않습니다**. 그래서 설치 시 다음과 같은 경고가 뜰 수 있습니다:
 
 > **"Windows에서 PC를 보호했습니다" (Windows protected your PC)**
 
@@ -41,6 +46,28 @@
 2. **"실행"** 버튼 클릭
 
 일부 백신 프로그램도 서명되지 않은 새 실행 파일이라는 이유만으로 오탐(false positive)할 수 있습니다. 예외 처리 후 사용해 주세요. 소스가 궁금하시면 이 저장소의 코드를 직접 확인하시거나 `npm run build:win`으로 로컬에서 직접 빌드하실 수 있습니다.
+
+### 이 경고를 없애려면 (코드 서명 설정)
+
+빌드 파이프라인에는 서명 단계가 **이미 준비되어 있고**, 아래 값이 등록되면 자동으로 켜집니다. 등록 전까지는 서명 없이 빌드가 그대로 진행됩니다.
+
+1. [Azure Portal](https://portal.azure.com)에서 **Trusted Signing** 리소스를 만듭니다 (Basic 요금제, 월 $10 내외).
+2. 신원 검증(Identity Validation)을 완료합니다. 사업자 정보 또는 개인 개발자 검증이 필요하며 보통 1~3일 걸립니다.
+3. 서명 권한을 가진 앱 등록(App Registration)을 만들고, GitHub 저장소의
+   **Settings → Secrets and variables → Actions** 에 등록합니다.
+
+   | 종류 | 이름 | 값 |
+   |---|---|---|
+   | Secret | `AZURE_TENANT_ID` | 디렉터리(테넌트) ID |
+   | Secret | `AZURE_CLIENT_ID` | 앱 등록의 클라이언트 ID |
+   | Secret | `AZURE_CLIENT_SECRET` | 앱 등록의 클라이언트 비밀 |
+   | Variable | `AZURE_SIGNING_ENDPOINT` | 예: `https://koreacentral.codesigning.azure.net` |
+   | Variable | `AZURE_SIGNING_ACCOUNT` | Trusted Signing 계정 이름 |
+   | Variable | `AZURE_CERT_PROFILE` | 인증서 프로필 이름 |
+
+4. 다음 릴리즈부터 설치 파일이 서명되어 SmartScreen 경고가 사라집니다.
+
+`AZURE_CLIENT_ID`가 없으면 워크플로우는 서명 단계를 건너뛰고 안내 메시지만 남기므로, 설정 전후 모두 빌드가 정상 동작합니다.
 
 ---
 
@@ -94,7 +121,8 @@ gijo-smart-md-studio/
 ├── js/
 │   ├── app.js            # 에디터 로직, 이미지 압축, UI 이벤트 바인딩
 │   ├── templates.js      # 기술 문서 템플릿 모음
-│   ├── storage.js        # IndexedDB 문서함 + 버전 히스토리
+│   ├── storage.js        # IndexedDB 문서함 + 버전 히스토리 + 백업/복원
+│   ├── annotate.js       # 이미지 주석 편집기 (화살표/사각형/텍스트/모자이크)
 │   └── export.js         # MD/HTML/PDF/DOCX 내보내기
 └── vendor/               # 로컬 내장 라이브러리 (오프라인 동작용, CDN 미사용)
     ├── VERSIONS.md        # 내장 라이브러리 버전/출처/라이선스 기록

@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Release tag to publish under (e.g. v2.0.0)'
+        description: 'Release tag to publish under (e.g. v2.1.0)'
         required: true
 
 permissions:
@@ -32,6 +32,46 @@ jobs:
       - name: Build Windows installer
         shell: bash
         run: npm run build:win 2>&1 | tee build-win.log
+
+      # Code signing removes the SmartScreen "unknown publisher" warning.
+      # Inert until the three AZURE_* secrets exist, so the build keeps
+      # working unsigned until Trusted Signing is set up. See README.
+      - name: Check for code signing credentials
+        id: signing
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        run: |
+          if [ -n "$AZURE_CLIENT_ID" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Code signing is not configured — the installer will be unsigned and Windows will show a SmartScreen warning. See README for setup."
+          fi
+
+      - name: Sign the installer (Azure Trusted Signing)
+        if: steps.signing.outputs.configured == 'true'
+        uses: azure/trusted-signing-action@v0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_CERT_PROFILE }}
+          files-folder: ${{ github.workspace }}\dist
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      # latest.yml is regenerated after signing so its hashes match the
+      # signed binary — electron-updater rejects a mismatch, which would
+      # silently break auto-update for everyone already on an older build.
+      - name: Refresh update metadata after signing
+        if: steps.signing.outputs.configured == 'true'
+        shell: bash
+        run: npx --no-install electron-builder --win --prepackaged dist/win-unpacked --publish never
 
       - name: Push build log to debug branch on failure
         if: failure()
@@ -58,9 +98,14 @@ jobs:
             echo "tag=${{ github.event.inputs.tag_name }}" >> "$GITHUB_OUTPUT"
           fi
 
+      # latest.yml and the .blockmap must ship alongside the installer —
+      # electron-updater reads them to detect and delta-download updates.
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: ${{ steps.tag.outputs.tag }}
-          files: dist/*.exe
+          files: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest.yml
           generate_release_notes: true

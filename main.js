@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
 
 function createWindow() {
@@ -101,8 +101,45 @@ ipcMain.handle('export:print-to-pdf', async (event) => {
   return new Uint8Array(buffer);
 });
 
+// Auto-update against GitHub Releases. Only meaningful in an installed
+// build — in dev there is no update metadata to compare against, and
+// electron-updater throws rather than no-oping, so it is not even loaded.
+function setupAutoUpdater() {
+  if (!app.isPackaged) return;
+
+  let autoUpdater;
+  try {
+    ({ autoUpdater } = require('electron-updater'));
+  } catch (err) {
+    console.error('electron-updater unavailable:', err);
+    return;
+  }
+
+  autoUpdater.on('update-downloaded', async (info) => {
+    const { response } = await dialog.showMessageBox({
+      type: 'info',
+      buttons: ['지금 재시작', '나중에'],
+      defaultId: 0,
+      cancelId: 1,
+      title: '업데이트 준비 완료',
+      message: `새 버전 ${info.version} 이(가) 준비되었습니다.`,
+      detail: '지금 재시작하면 업데이트가 적용됩니다. 저장되지 않은 내용은 자동으로 저장됩니다.',
+    });
+    if (response === 0) autoUpdater.quitAndInstall();
+  });
+
+  // Update failures must never interrupt normal use — no release yet,
+  // offline, or a blocked network all surface here.
+  autoUpdater.on('error', (err) => console.error('Auto-update check failed:', err));
+
+  autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+    console.error('Auto-update check failed:', err);
+  });
+}
+
 app.whenReady().then(() => {
   createWindow();
+  setupAutoUpdater();
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
