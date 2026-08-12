@@ -1,9 +1,12 @@
-const { contextBridge } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
-// Minimal bridge so the renderer can feature-detect the desktop build without
-// any Node integration. Extended in later phases (PDF export IPC, native menu
-// command dispatch) — kept narrow on purpose since contextIsolation stays on.
+// Narrow bridge kept deliberately small — contextIsolation + sandbox stay on,
+// so this is the renderer's only way to reach the main process.
 contextBridge.exposeInMainWorld('gijoDesktop', {
   isElectron: true,
   platform: process.platform,
+  exportPdf: () => ipcRenderer.invoke('export:print-to-pdf'),
+  onMenuCommand: (callback) => {
+    ipcRenderer.on('menu:command', (_event, command) => callback(command));
+  },
 });
