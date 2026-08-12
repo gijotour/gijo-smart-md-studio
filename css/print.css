@@ -28,6 +28,13 @@ body {
   display: none !important;
 }
 
+/* The narrow-viewport sidebar backdrop (style.css) is position:fixed and
+   matches paper widths (A4 ≈ 794px < the 860px breakpoint), so without this
+   reset it dims every printed page whenever the sidebar is open. */
+.app-body::after {
+  content: none !important;
+}
+
 .app-container, .app-body, .workspace, .split-pane, .preview-area {
   display: block !important;
   height: auto !important;
@@ -96,6 +103,10 @@ body {
   border: 1px solid #e2e8f0;
   white-space: pre-wrap;
   word-break: break-word;
+  /* Force the dark background through browser print dialogs even when
+     "배경 그래픽" is unchecked — otherwise the light text prints on white. */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 .markdown-body code {

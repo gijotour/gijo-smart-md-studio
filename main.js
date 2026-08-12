@@ -20,10 +20,18 @@ function createWindow() {
   // Load index.html
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
+  // The renderer preventDefault()s stray drops itself; this is defense in
+  // depth so a dropped file or dragged link can never navigate the window
+  // away from the app.
+  mainWindow.webContents.on('will-navigate', (e) => e.preventDefault());
+
   // Menu items dispatch a named command to the renderer over IPC rather than
   // eval'ing a DOM click — needed now that "내보내기" is a dropdown with no
   // single element to click, and a cleaner pattern than string-eval anyway.
-  const sendCommand = (cmd) => mainWindow.webContents.send('menu:command', cmd);
+  // Guarded because on macOS the app (and this menu) outlives the window.
+  const sendCommand = (cmd) => {
+    if (!mainWindow.isDestroyed()) mainWindow.webContents.send('menu:command', cmd);
+  };
 
   const template = [
     {
@@ -81,7 +89,10 @@ function createWindow() {
 // export format.
 ipcMain.handle('export:print-to-pdf', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
-  const buffer = await win.webContents.printToPDF({});
+  // printBackground matters: without it the dark code-block background is
+  // dropped while its light text color still applies — near-invisible
+  // white-on-white code in the exported PDF.
+  const buffer = await win.webContents.printToPDF({ printBackground: true });
   // printToPDF resolves a Node Buffer; hand back a plain Uint8Array instead
   // of the raw Buffer — cloning a Buffer across contextBridge/invoke's
   // structured-clone boundary has been an unreliable edge in some Electron

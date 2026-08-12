@@ -45,9 +45,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const MAX_IMAGE_DIMENSION = 1600; // longest edge, px (the bug-report template text mentions 1200px — 1600 is a more modern default for today's high-DPI screenshots; either is a one-line change)
   const JPEG_QUALITY = 0.85;
 
+  const RECOVERY_KEY = 'gijo_md_studio_recovery';
+
   let currentDocId = null;
   let storageAvailable = true;
   let autoSaveTimer = null;
+  let saveInFlight = null; // promise of the save currently being written, if any
   const lastSnapshotAt = {}; // docId -> timestamp
 
   // --- 2. Live Preview & Formatting ---
@@ -97,41 +100,87 @@ document.addEventListener('DOMContentLoaded', () => {
   async function saveCurrentDocument() {
     clearTimeout(autoSaveTimer);
     autoSaveTimer = null;
+    // Everything this save touches is captured before the first await — the
+    // user can switch documents while the (potentially multi-MB) write is in
+    // flight, and a live read of currentDocId after an await would then file
+    // this doc's snapshot under the OTHER doc's history.
+    const docId = currentDocId;
     const title = docTitleInput.value;
     const content = editor.value;
 
     if (!storageAvailable) {
-      localStorage.setItem(LEGACY_KEY_CONTENT, content);
-      localStorage.setItem(LEGACY_KEY_TITLE, title);
-      stampSaveTime();
+      try {
+        localStorage.setItem(LEGACY_KEY_CONTENT, content);
+        localStorage.setItem(LEGACY_KEY_TITLE, title);
+        stampSaveTime();
+      } catch (err) {
+        console.error('Save failed', err);
+        showToast('저장 중 오류가 발생했습니다. 저장 공간이 부족할 수 있습니다.', 'warning');
+      }
       return;
     }
 
-    if (!currentDocId) return;
-    try {
-      await GijoStorage.updateDocumentContent(currentDocId, { title, content });
-      await maybeCreateSnapshot(currentDocId, title, content);
-      stampSaveTime();
-      renderDocumentList();
-    } catch (err) {
-      console.error('Save failed', err);
-      showToast('저장 중 오류가 발생했습니다.', 'warning');
-    }
+    if (!docId) return;
+    saveInFlight = (async () => {
+      try {
+        await GijoStorage.updateDocumentContent(docId, { title, content });
+        await maybeCreateSnapshot(docId, title, content);
+        stampSaveTime();
+        renderDocumentList();
+      } catch (err) {
+        console.error('Save failed', err);
+        showToast('저장 중 오류가 발생했습니다.', 'warning');
+      } finally {
+        saveInFlight = null;
+      }
+    })();
+    await saveInFlight;
   }
 
   // The one path that could actually lose user work: a pending debounced
-  // save when the user switches documents (or closes the app) before it
-  // fires. Called before every switch, and best-effort on beforeunload.
+  // save (or one already mid-write) when the user switches documents.
+  // Called before every switch.
   async function flushCurrentDocument() {
     if (autoSaveTimer) await saveCurrentDocument();
+    else if (saveInFlight) await saveInFlight;
   }
 
+  // An async IndexedDB save started during unload never completes — the
+  // renderer is torn down before the write transaction exists. The only
+  // thing that reliably survives is a synchronous localStorage write, so
+  // stash unsaved content in a recovery record and re-apply it on next
+  // launch (applyRecoveryIfAny).
   window.addEventListener('beforeunload', () => {
-    if (autoSaveTimer) {
-      clearTimeout(autoSaveTimer);
-      saveCurrentDocument(); // fire-and-forget — beforeunload can't await
-    }
+    if (!storageAvailable) return; // legacy mode already saves synchronously
+    if (!autoSaveTimer && !saveInFlight) return;
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = null;
+    try {
+      localStorage.setItem(RECOVERY_KEY, JSON.stringify({
+        docId: currentDocId,
+        title: docTitleInput.value,
+        content: editor.value,
+        ts: Date.now(),
+      }));
+    } catch (_) { /* quota exhausted — nothing more we can do at teardown */ }
   });
+
+  // Shrink the unload-loss window during normal use: flush as soon as the
+  // window is hidden (minimize, tab switch, screen lock).
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && autoSaveTimer) saveCurrentDocument();
+  });
+
+  async function applyRecoveryIfAny() {
+    let rec = null;
+    try { rec = JSON.parse(localStorage.getItem(RECOVERY_KEY) || 'null'); } catch (_) { /* corrupt record */ }
+    localStorage.removeItem(RECOVERY_KEY);
+    if (!rec || !rec.docId || typeof rec.content !== 'string') return;
+    const doc = await GijoStorage.getDocument(rec.docId);
+    if (!doc || rec.ts <= doc.updatedAt) return;
+    await GijoStorage.updateDocumentContent(rec.docId, { title: rec.title, content: rec.content });
+    showToast('종료 직전 저장되지 못한 내용을 복구했습니다.', 'success');
+  }
 
   async function switchToDocument(docId, { skipFlush = false } = {}) {
     if (!skipFlush) await flushCurrentDocument();
@@ -147,7 +196,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function createNewDocument(initial = {}) {
     if (!storageAvailable) {
-      showToast('이 브라우저에서는 다중 문서 기능을 사용할 수 없습니다.', 'warning');
+      // Single-document fallback has no library to create into — but the
+      // template buttons route here too, and templates worked fine in the
+      // single-document v1 model: load into the one editor instead.
+      if (initial.content) {
+        if (!confirm('현재 작성 중인 내용이 템플릿으로 대체됩니다. 진행하시겠습니까?')) return;
+        docTitleInput.value = initial.title || '제목 없는 문서';
+        editor.value = initial.content;
+        updatePreview();
+        scheduleAutoSave();
+        showToast(`'${docTitleInput.value}' 템플릿 적용 완료`, 'success');
+      } else {
+        showToast('이 브라우저에서는 다중 문서 기능을 사용할 수 없습니다.', 'warning');
+      }
       return;
     }
     await flushCurrentDocument();
@@ -174,6 +235,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!confirm('이 문서를 삭제하시겠습니까? 히스토리도 함께 삭제됩니다.')) return;
 
     const wasCurrent = docId === currentDocId;
+    if (wasCurrent) {
+      // A pending autosave firing mid-delete would find the doc gone and
+      // surface a spurious "저장 중 오류" toast — settle it first.
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = null;
+      if (saveInFlight) await saveInFlight;
+    }
     await GijoStorage.deleteDocument(docId);
     if (wasCurrent) {
       const remaining = await GijoStorage.getAllDocuments();
@@ -358,11 +426,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     showToast('이미지 변환 중...', 'info');
 
+    // Pin the insertion to the document that was open when the image came
+    // in — compression takes long enough (seconds, for multi-file drops)
+    // that the user can switch documents mid-batch, and inserting into the
+    // now-visible textarea would put the image in the wrong document.
+    const targetDocId = currentDocId;
+
     try {
       const finalBlob = await compressImage(file);
       const dataUrl = await blobToDataUrl(finalBlob);
       const timeStamp = new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 14);
       const imgMarkdown = `\n\n![캡처이미지_${timeStamp}](${dataUrl})\n\n`;
+
+      if (storageAvailable && targetDocId && targetDocId !== currentDocId) {
+        const doc = await GijoStorage.getDocument(targetDocId);
+        if (doc) {
+          await GijoStorage.updateDocumentContent(targetDocId, { title: doc.title, content: doc.content + imgMarkdown });
+          renderDocumentList();
+          showToast('문서가 전환되어 이미지를 원래 문서의 끝에 추가했습니다.', 'info');
+        }
+        return;
+      }
 
       insertAtCursor(editor, imgMarkdown);
 
@@ -404,11 +488,27 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Drag and Drop File Handling
+  //
+  // A drop that lands OUTSIDE the overlay must never reach the browser
+  // default, which is "navigate this window to the dropped file" — in the
+  // desktop build that replaces the whole app with the raw image until
+  // restart. (The overlay's own drop handler stopPropagation()s, so this
+  // only catches strays.)
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropOverlay.classList.remove('active');
+  });
+
+  // Only light up the overlay for actual file drags — activating it for
+  // text drags would swallow native drag-to-move of selected editor text.
+  function dragHasFiles(e) {
+    return e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+  }
+
   ['dragenter', 'dragover'].forEach(eventName => {
     window.addEventListener(eventName, (e) => {
       e.preventDefault();
-      e.stopPropagation();
-      dropOverlay.classList.add('active');
+      if (dragHasFiles(e)) dropOverlay.classList.add('active');
     }, false);
   });
 
@@ -470,6 +570,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     insertAtCursor(editor, replacement);
   }
+
+  // Keyboard shortcuts the toolbar tooltips advertise. Ctrl+B/I work in
+  // every build; browsers reserve Ctrl+1..3 for tab switching, so those
+  // only take effect in the desktop (Electron) build.
+  editor.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+    const cmd = { b: 'bold', i: 'italic', 1: 'h1', 2: 'h2', 3: 'h3' }[e.key.toLowerCase()];
+    if (!cmd) return;
+    e.preventDefault();
+    applyToolbarFormat(cmd);
+  });
 
   // --- 7. Template Buttons (create a new document, matching the library model) ---
   document.querySelectorAll('.template-btn').forEach(btn => {
@@ -588,8 +699,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- 10. View Toggles ---
   btnToggleView.addEventListener('click', () => {
-    splitPane.classList.remove('word-mode');
-    splitPane.classList.toggle('editor-only');
+    if (splitPane.classList.contains('word-mode')) {
+      // Leaving word mode lands in the actual split view — editor-only is
+      // untouched here or the button labeled "분할 뷰" would show editor-only.
+      splitPane.classList.remove('word-mode', 'editor-only');
+    } else {
+      splitPane.classList.toggle('editor-only');
+    }
     btnToggleView.classList.add('active');
     btnViewWord.classList.remove('active');
   });
@@ -640,7 +756,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (type === 'success') icon = 'fa-check-circle';
     if (type === 'warning') icon = 'fa-exclamation-triangle';
 
-    toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${message}</span>`;
+    // textContent, not innerHTML — messages interpolate user-controlled
+    // strings (document titles), and this must not be an injection sink.
+    const iconEl = document.createElement('i');
+    iconEl.className = `fa-solid ${icon}`;
+    const spanEl = document.createElement('span');
+    spanEl.textContent = message;
+    toast.appendChild(iconEl);
+    toast.appendChild(spanEl);
     toastContainer.appendChild(toast);
 
     setTimeout(() => {
@@ -693,6 +816,7 @@ document.addEventListener('DOMContentLoaded', () => {
     storageAvailable = GijoStorage.isAvailable();
 
     if (storageAvailable) {
+      await applyRecoveryIfAny();
       let docs = await GijoStorage.getAllDocuments();
       if (docs.length === 0) {
         docs = [await GijoStorage.createDocument({ title: DOC_TEMPLATES.bug.title, content: DOC_TEMPLATES.bug.content })];

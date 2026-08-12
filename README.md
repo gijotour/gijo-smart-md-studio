@@ -4,7 +4,7 @@
 
 # GIJO Smart MD Studio (마크다운 MD 전용 문서 작성기) 📝
 
-![Version](https://img.shields.io/badge/version-2.0.1-blue.svg)
+![Version](https://img.shields.io/badge/version-2.0.2-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Electron](https://img.shields.io/badge/Electron-33.x-47848F.svg)
 

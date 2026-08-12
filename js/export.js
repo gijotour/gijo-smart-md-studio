@@ -85,8 +85,10 @@ const GijoExport = (() => {
 
     // Web build: css/print.css is already linked with media="print" in
     // index.html, so the browser's native print dialog (→ "Save as PDF")
-    // picks it up automatically. No extra work needed here.
-    window.print();
+    // picks it up automatically. Deferred a beat so the caller's guidance
+    // toast ("PDF로 저장을 선택하세요") renders BEFORE the blocking dialog
+    // opens — synchronous window.print() would show it only afterwards.
+    setTimeout(() => window.print(), 150);
     return { ok: true, viaPrint: true };
   }
 

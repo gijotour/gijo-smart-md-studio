@@ -37,6 +37,10 @@ jobs:
         if: failure()
         shell: bash
         run: |
+          # failure() also fires when an earlier step (checkout/npm ci) died
+          # before the build ever ran — nothing to push then, and letting
+          # git add error out would bury the real failure under noise.
+          [ -f build-win.log ] || { echo "no build log produced"; exit 0; }
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b ci-debug-logs
