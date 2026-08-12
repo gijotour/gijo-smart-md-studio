@@ -24,6 +24,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnViewWord = document.getElementById('btn-view-word');
   const btnSidebarToggle = document.getElementById('btn-sidebar-toggle');
   const btnNewDoc = document.getElementById('btn-new-doc');
+  const btnBackup = document.getElementById('btn-backup');
+  const btnRestore = document.getElementById('btn-restore');
+  const btnImportMd = document.getElementById('btn-import-md');
+  const mdFileInput = document.getElementById('md-file-input');
+  const backupFileInput = document.getElementById('backup-file-input');
   const btnExportToggle = document.getElementById('btn-export-toggle');
   const btnHistoryClose = document.getElementById('btn-history-close');
 
@@ -587,11 +592,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   dropOverlay.addEventListener('drop', (e) => {
-    const dt = e.dataTransfer;
-    const files = dt.files;
-    if (files && files.length > 0) {
-      processImageFiles(Array.from(files));
-    }
+    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+    if (!files.length) return;
+    // Markdown files become new documents; everything else goes through the
+    // image pipeline (which rejects non-images with its own message).
+    const markdown = files.filter(isMarkdownFile);
+    const rest = files.filter((f) => !isMarkdownFile(f));
+    if (markdown.length) importMarkdownFiles(markdown);
+    if (rest.length) processImageFiles(rest);
   });
 
   // Image File Picker Input
@@ -760,6 +768,108 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   btnNewDoc.addEventListener('click', () => createNewDocument());
+
+  // --- 9b. Backup / Restore / Markdown Import ---
+  function requireLibrary() {
+    if (storageAvailable) return true;
+    showToast('이 브라우저에서는 문서함 기능을 사용할 수 없습니다.', 'warning');
+    return false;
+  }
+
+  btnBackup.addEventListener('click', async () => {
+    if (!requireLibrary()) return;
+    try {
+      await flushCurrentDocument();
+      const payload = await GijoStorage.exportBackup();
+      if (payload.documentCount === 0) {
+        showToast('백업할 문서가 없습니다.', 'warning');
+        return;
+      }
+      const stamp = new Date().toISOString().slice(0, 10);
+      GijoExport.downloadBlob(
+        new Blob([JSON.stringify(payload)], { type: 'application/json;charset=utf-8;' }),
+        `gijo-md-studio-backup-${stamp}.json`
+      );
+      showToast(`문서 ${payload.documentCount}개를 백업했습니다.`, 'success');
+    } catch (err) {
+      console.error('Backup failed', err);
+      showToast('백업 중 오류가 발생했습니다.', 'warning');
+    }
+  });
+
+  btnRestore.addEventListener('click', () => {
+    if (!requireLibrary()) return;
+    backupFileInput.click();
+  });
+
+  backupFileInput.addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    backupFileInput.value = '';
+    if (!file) return;
+    try {
+      const payload = JSON.parse(await file.text());
+      const count = Array.isArray(payload.documents) ? payload.documents.length : 0;
+      if (!confirm(`백업 파일의 문서 ${count}개를 문서함에 추가합니다.\n기존 문서는 삭제되지 않으며, 이미 있는 문서는 건너뜁니다.\n\n계속하시겠습니까?`)) return;
+
+      const { imported, skipped } = await GijoStorage.importBackup(payload);
+      await renderDocumentList();
+      showToast(`복원 완료: ${imported}개 추가${skipped ? `, ${skipped}개 건너뜀 (이미 존재)` : ''}`, 'success');
+    } catch (err) {
+      console.error('Restore failed', err);
+      const msg = err && err.message === 'INVALID_BACKUP'
+        ? 'GIJO MD Studio 백업 파일이 아닙니다.'
+        : err && err.message === 'UNSUPPORTED_VERSION'
+          ? '더 최신 버전에서 만든 백업 파일입니다. 앱을 업데이트해 주세요.'
+          : '백업 파일을 읽을 수 없습니다.';
+      showToast(msg, 'warning');
+    }
+  });
+
+  btnImportMd.addEventListener('click', () => {
+    if (!requireLibrary()) return;
+    mdFileInput.click();
+  });
+
+  mdFileInput.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    mdFileInput.value = '';
+    await importMarkdownFiles(files);
+  });
+
+  function isMarkdownFile(file) {
+    return /\.(md|markdown)$/i.test(file.name) || file.type === 'text/markdown';
+  }
+
+  async function importMarkdownFiles(files) {
+    if (!files.length) return;
+    if (!requireLibrary()) return;
+    await flushCurrentDocument();
+
+    let firstId = null;
+    let imported = 0;
+    for (const file of files) {
+      try {
+        const content = await file.text();
+        const doc = await GijoStorage.createDocument({
+          title: file.name.replace(/\.(md|markdown)$/i, '') || '제목 없는 문서',
+          content,
+        });
+        if (!firstId) firstId = doc.id;
+        imported++;
+      } catch (err) {
+        console.error('Markdown import failed', file.name, err);
+      }
+    }
+
+    if (!imported) {
+      showToast('가져올 수 있는 파일이 없습니다.', 'warning');
+      return;
+    }
+    // Open the first import so the result is immediately visible.
+    if (firstId) await switchToDocument(firstId, { skipFlush: true });
+    else await renderDocumentList();
+    showToast(`${imported}개의 마크다운 파일을 가져왔습니다.`, 'success');
+  }
 
   // --- 10. View Toggles ---
   btnToggleView.addEventListener('click', () => {

@@ -110,7 +110,9 @@ const GijoExport = (() => {
     return { ok: true };
   }
 
-  return { exportMarkdown, exportHtml, exportPdf, exportDocx };
+  // downloadBlob is shared with app.js's backup export — the same
+  // blob + <a download> mechanism every format here already uses.
+  return { exportMarkdown, exportHtml, exportPdf, exportDocx, downloadBlob };
 })();
 
 window.GijoExport = GijoExport;

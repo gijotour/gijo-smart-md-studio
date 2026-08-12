@@ -80,6 +80,20 @@
         </button>
         <div class="sidebar-section-label"><i class="fa-solid fa-folder-open"></i> 문서함</div>
         <div id="document-list" class="document-list"></div>
+
+        <div class="sidebar-footer">
+          <button id="btn-import-md" class="sidebar-action" title="컴퓨터의 .md 파일을 문서함으로 가져오기">
+            <i class="fa-solid fa-file-import"></i> .md 가져오기
+          </button>
+          <button id="btn-backup" class="sidebar-action" title="문서함 전체를 백업 파일로 저장">
+            <i class="fa-solid fa-box-archive"></i> 문서함 백업
+          </button>
+          <button id="btn-restore" class="sidebar-action" title="백업 파일에서 문서 복원">
+            <i class="fa-solid fa-rotate-left"></i> 백업 복원
+          </button>
+          <input type="file" id="md-file-input" accept=".md,.markdown,text/markdown" multiple hidden>
+          <input type="file" id="backup-file-input" accept=".json,application/json" hidden>
+        </div>
       </aside>
 
     <!-- Main Workspace -->

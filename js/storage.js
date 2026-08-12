@@ -137,6 +137,57 @@ const GijoStorage = (() => {
     return createDocument({ title: `${doc.title} (복사본)`, content: doc.content });
   }
 
+  // --- Backup / restore ---
+  //
+  // Documents only, deliberately: version-history snapshots hold full copies
+  // of image-heavy content (up to HISTORY_LIMIT per document), which would
+  // multiply a backup's size several-fold for data that is by definition
+  // recoverable working state rather than the documents themselves.
+  const BACKUP_FORMAT = 'gijo-md-studio-backup';
+  const BACKUP_VERSION = 1;
+
+  async function exportBackup() {
+    const documents = await getAllDocuments();
+    return {
+      format: BACKUP_FORMAT,
+      version: BACKUP_VERSION,
+      exportedAt: Date.now(),
+      documentCount: documents.length,
+      documents,
+    };
+  }
+
+  // Additive by design — a restore must never destroy documents the user
+  // created since the backup was taken. Documents whose id already exists
+  // are skipped rather than overwritten (their content may well be newer).
+  async function importBackup(payload) {
+    if (!payload || payload.format !== BACKUP_FORMAT || !Array.isArray(payload.documents)) {
+      throw new Error('INVALID_BACKUP');
+    }
+    if (payload.version > BACKUP_VERSION) throw new Error('UNSUPPORTED_VERSION');
+
+    const existing = new Set((await getAllDocuments()).map((d) => d.id));
+    let imported = 0;
+    let skipped = 0;
+
+    for (const raw of payload.documents) {
+      if (!raw || typeof raw.content !== 'string') { skipped++; continue; }
+      if (raw.id && existing.has(raw.id)) { skipped++; continue; }
+      const now = Date.now();
+      await saveDocument({
+        id: raw.id || generateId(),
+        title: typeof raw.title === 'string' && raw.title ? raw.title : '제목 없는 문서',
+        content: raw.content,
+        createdAt: Number(raw.createdAt) || now,
+        updatedAt: Number(raw.updatedAt) || now,
+        sizeBytes: byteLength(raw.content),
+        imageCount: countImages(raw.content),
+      });
+      imported++;
+    }
+    return { imported, skipped };
+  }
+
   async function getHistory(docId) {
     const db = await openDb();
     const tx = db.transaction(STORE_HISTORY, 'readonly');
@@ -210,6 +261,8 @@ const GijoStorage = (() => {
     createDocument,
     updateDocumentContent,
     duplicateDocument,
+    exportBackup,
+    importBackup,
     deleteDocument,
     getHistory,
     createSnapshot,
