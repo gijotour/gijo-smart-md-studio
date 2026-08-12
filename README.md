@@ -26,6 +26,20 @@
 
 ---
 
+## ⚠️ Windows에서 설치 시 안내
+
+[Releases](https://github.com/gijotour/gijo-smart-md-studio/releases)에서 받은 설치 파일(`GIJO Smart MD Studio Setup x.x.x.exe`)은 아직 **코드 서명이 되어 있지 않습니다**. 코드 서명 인증서는 유료이며 신원 확인 절차가 필요해 아직 적용하지 못했습니다 (예정 — SignPath.io 무료 오픈소스 서명 또는 유료 인증서 검토 중). 그래서 설치 시 다음과 같은 경고가 뜰 수 있습니다:
+
+> **"Windows에서 PC를 보호했습니다" (Windows protected your PC)**
+
+정상적인 앱이니 아래와 같이 진행하시면 됩니다:
+1. **"추가 정보"** 클릭
+2. **"실행"** 버튼 클릭
+
+일부 백신 프로그램도 서명되지 않은 새 실행 파일이라는 이유만으로 오탐(false positive)할 수 있습니다. 예외 처리 후 사용해 주세요. 소스가 궁금하시면 이 저장소의 코드를 직접 확인하시거나 `npm run build:win`으로 로컬에서 직접 빌드하실 수 있습니다.
+
+---
+
 ## 🛠 설치 및 실행 방법
 
 ### 1. 레포지토리 클론 및 패키지 설치
@@ -53,7 +67,7 @@ npm run build:win     # Windows (nsis 설치 프로그램)
 npm run build:mac     # macOS 전용 빌드 — 반드시 macOS에서 실행해야 함 (dmg)
 npm run build:linux   # Linux (AppImage)
 ```
-빌드 결과물은 `dist/` 폴더에 생성됩니다.
+빌드 결과물은 `dist/` 폴더에 생성됩니다. `master` 브랜치에 `vX.Y.Z` 형식의 태그를 푸시하거나 GitHub Actions의 "Build & Release Windows Installer" 워크플로우를 수동 실행하면, 실제 Windows 서버에서 빌드되어 [Releases](https://github.com/gijotour/gijo-smart-md-studio/releases)에 자동 게시됩니다.
 
 ---
 
