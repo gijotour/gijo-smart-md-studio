@@ -11,8 +11,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const toastContainer = document.getElementById('toast-container');
   const imageFileInput = document.getElementById('image-file-input');
   const appBody = document.getElementById('app-body');
+  const sidebarBackdrop = document.getElementById('sidebar-backdrop');
   const documentListEl = document.getElementById('document-list');
   const docSearchInput = document.getElementById('doc-search');
+  const docSortSelect = document.getElementById('doc-sort');
+  const btnSelectMode = document.getElementById('btn-select-mode');
+  const docFilterChips = document.getElementById('doc-filter-chips');
+  const docSelectBar = document.getElementById('doc-select-bar');
+  const docSelectAll = document.getElementById('doc-select-all');
+  const docSelectCount = document.getElementById('doc-select-count');
+  const btnBulkExportMd = document.getElementById('btn-bulk-export-md');
+  const btnBulkDelete = document.getElementById('btn-bulk-delete');
+  const mobileTabWrite = document.getElementById('mobile-tab-write');
+  const mobileTabPreview = document.getElementById('mobile-tab-preview');
+  const statusCharCount = document.getElementById('status-char-count');
+  const statusLineCount = document.getElementById('status-line-count');
+  const statusImageCount = document.getElementById('status-image-count');
   const exportMenu = document.getElementById('export-menu');
   const historyModal = document.getElementById('history-modal');
   const historyList = document.getElementById('history-list');
@@ -32,6 +46,49 @@ document.addEventListener('DOMContentLoaded', () => {
   const backupFileInput = document.getElementById('backup-file-input');
   const btnExportToggle = document.getElementById('btn-export-toggle');
   const btnHistoryClose = document.getElementById('btn-history-close');
+  const btnOpenFile = document.getElementById('btn-open-file');
+  const btnSaveFile = document.getElementById('btn-save-file');
+  const fileTagEl = document.getElementById('file-tag');
+  const fileTagLabel = document.getElementById('file-tag-label');
+  const fileTagName = document.getElementById('file-tag-name');
+  const fileDirtyDot = document.getElementById('file-dirty-dot');
+  const btnUnlinkFile = document.getElementById('btn-unlink-file');
+  const fileUnsupportedNotice = document.getElementById('file-unsupported-notice');
+  const btnDismissUnsupported = document.getElementById('btn-dismiss-unsupported');
+
+  // Workspace Folder Sidebar & New File Modal Elements
+  const btnOpenFolder = document.getElementById('btn-open-folder');
+  const btnReopenFolder = document.getElementById('btn-reopen-folder');
+  const reopenFolderLabel = document.getElementById('reopen-folder-label');
+  const folderUnsupportedHint = document.getElementById('folder-unsupported-hint');
+  const sidebarTabs = document.getElementById('sidebar-tabs');
+  const sidebarLibraryLabel = document.getElementById('sidebar-library-label');
+  const tabLibrary = document.getElementById('tab-library');
+  const tabFolder = document.getElementById('tab-folder');
+  const sidebarLibraryPane = document.getElementById('sidebar-library-pane');
+  const sidebarFolderPane = document.getElementById('sidebar-folder-pane');
+  const folderEmptyState = document.getElementById('folder-empty-state');
+  const btnFolderEmptyOpen = document.getElementById('btn-folder-empty-open');
+  const btnFolderEmptyReopen = document.getElementById('btn-folder-empty-reopen');
+  const folderEmptyReopenLabel = document.getElementById('folder-empty-reopen-label');
+  const folderActiveView = document.getElementById('folder-active-view');
+  const folderRootBtn = document.getElementById('folder-root-btn');
+  const folderRootName = document.getElementById('folder-root-name');
+  const folderFileCount = document.getElementById('folder-file-count');
+  const btnFolderNewFile = document.getElementById('btn-folder-new-file');
+  const btnFolderRefresh = document.getElementById('btn-folder-refresh');
+  const btnFolderClose = document.getElementById('btn-folder-close');
+  const folderSearchInput = document.getElementById('folder-search');
+  const folderLimitNotice = document.getElementById('folder-limit-notice');
+  const folderTreeEl = document.getElementById('folder-tree');
+  const btnExportFolder = document.getElementById('btn-export-folder');
+  const newFileModal = document.getElementById('new-file-modal');
+  const newFileForm = document.getElementById('new-file-form');
+  const newFileLocation = document.getElementById('new-file-location');
+  const newFileNameInput = document.getElementById('new-file-name-input');
+  const newFileError = document.getElementById('new-file-error');
+  const btnNewFileClose = document.getElementById('btn-new-file-close');
+  const btnNewFileCancel = document.getElementById('btn-new-file-cancel');
 
   // Initialize marked.js options
   if (window.marked) {
@@ -44,7 +101,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- 1. State ---
   const STORAGE_KEY_THEME = 'gijo_md_studio_theme';
   const STORAGE_KEY_SIDEBAR_COLLAPSED = 'gijo_md_studio_sidebar_collapsed';
+  const STORAGE_KEY_SORT = 'gijo_md_studio_sort';
   const SIDEBAR_AUTO_COLLAPSE_WIDTH = 860; // matches the CSS breakpoint in style.css
+  const MOBILE_BREAKPOINT = 720;
   const LEGACY_KEY_CONTENT = 'gijo_md_studio_content';
   const LEGACY_KEY_TITLE = 'gijo_md_studio_title';
   const SNAPSHOT_MIN_INTERVAL_MS = 5 * 60 * 1000; // at most one history snapshot per 5 min of active editing
@@ -52,13 +111,49 @@ document.addEventListener('DOMContentLoaded', () => {
   const JPEG_QUALITY = 0.85;
 
   const RECOVERY_KEY = 'gijo_md_studio_recovery';
+  const UNSUPPORTED_NOTICE_KEY = 'gijo_md_studio_fs_unsupported_seen';
+
+  function loadSortOrder() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_SORT);
+      if (saved === 'updated' || saved === 'title' || saved === 'created') return saved;
+    } catch (_) { /* ignore */ }
+    return 'updated';
+  }
 
   let currentDocId = null;
+  let currentFileMeta = null;
   let storageAvailable = true;
   let autoSaveTimer = null;
   let saveInFlight = null; // promise of the save currently being written, if any
   let annotateHintShown = false;
+  let lastSaveShortcutAt = 0;
+  let docSortOrder = loadSortOrder();
+  let docFilter = 'all';
+  let selectMode = false;
+  const selectedDocIds = new Set();
+  let lastVisibleDocIds = [];
+  let renamingDocId = null;
+  let mobileView = 'write';
+  let wasMobileLayout = window.innerWidth <= MOBILE_BREAKPOINT;
+  let resolveInitReady;
+  const initReady = new Promise((resolve) => { resolveInitReady = resolve; });
   const lastSnapshotAt = {}; // docId -> timestamp
+  const savedContentByDocId = new Map(); // docKey -> last content read from / written to disk
+  const dirtyLinkedDocIds = new Set(); // docKeys with unsaved changes vs linked disk file
+
+  // Workspace folder state
+  let activeSidebarTab = 'library';
+  let activeFolderHandle = null;
+  let savedFolderHandle = null;
+  let activeFolderEntries = [];
+  let activeFolderTruncated = false;
+  let selectedFolderDirPath = '';
+  const collapsedFolderDirs = new Set();
+  const folderStateByPath = new Map(); // entry.path -> { docId, isActive, isDirty }
+  const docFolderDirPathById = new Map(); // docKey -> dirPath inside activeFolderHandle
+  const previewBlobUrls = new Map(); // normalizedRelPath -> object URL for current document
+  let previewImageGen = 0;
 
   // --- 2. Live Preview & Formatting ---
   function updatePreview() {
@@ -73,14 +168,26 @@ document.addEventListener('DOMContentLoaded', () => {
       preview.innerText = text;
     }
 
-    charCount.textContent = `${text.length.toLocaleString()} 자`;
+    const charLen = text.length;
+    const lineLen = charLen === 0 ? 0 : text.split('\n').length;
+    charCount.textContent = `${charLen.toLocaleString()} 자`;
 
     const imgMatches = text.match(/!\[.*?\]\(data:image\/.*?;base64,.*?\)|!\[.*?\]\(.*?\)/g);
     const count = imgMatches ? imgMatches.length : 0;
     imageCount.innerHTML = `<i class="fa-solid fa-image"></i> 이미지 ${count}개`;
+
+    if (statusCharCount) statusCharCount.textContent = `${charLen.toLocaleString()}자`;
+    if (statusLineCount) statusLineCount.textContent = `${lineLen.toLocaleString()}줄`;
+    if (statusImageCount) statusImageCount.textContent = `그림 ${count}개`;
+
+    resolvePreviewRelativeImages();
   }
 
-  editor.addEventListener('input', () => { updatePreview(); scheduleAutoSave(); });
+  editor.addEventListener('input', () => {
+    updatePreview();
+    markCurrentContentChanged();
+    scheduleAutoSave();
+  });
   docTitleInput.addEventListener('input', () => { scheduleAutoSave(); });
 
   // --- 3. Document Persistence (IndexedDB library, with a single-document
@@ -114,6 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const docId = currentDocId;
     const title = docTitleInput.value;
     const content = editor.value;
+    const fileDirty = (currentFileMeta && currentFileMeta.fileHandle) ? !!currentFileMeta.fileDirty : undefined;
 
     if (!storageAvailable) {
       try {
@@ -127,10 +235,30 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    if (!docId) return;
+    if (!docId) {
+      if (!title.trim() && !content.trim()) return;
+      saveInFlight = (async () => {
+        try {
+          const created = await GijoStorage.createDocument({
+            title: title.trim() || '제목 없는 문서',
+            content,
+          });
+          currentDocId = created.id;
+          stampSaveTime();
+          renderDocumentList();
+        } catch (err) {
+          console.error('Save failed', err);
+          showToast('저장 중 오류가 발생했습니다.', 'warning');
+        } finally {
+          saveInFlight = null;
+        }
+      })();
+      await saveInFlight;
+      return;
+    }
     saveInFlight = (async () => {
       try {
-        await GijoStorage.updateDocumentContent(docId, { title, content });
+        await GijoStorage.updateDocumentContent(docId, { title, content, fileDirty });
         await maybeCreateSnapshot(docId, title, content);
         stampSaveTime();
         renderDocumentList();
@@ -157,19 +285,24 @@ document.addEventListener('DOMContentLoaded', () => {
   // thing that reliably survives is a synchronous localStorage write, so
   // stash unsaved content in a recovery record and re-apply it on next
   // launch (applyRecoveryIfAny).
-  window.addEventListener('beforeunload', () => {
-    if (!storageAvailable) return; // legacy mode already saves synchronously
-    if (!autoSaveTimer && !saveInFlight) return;
-    clearTimeout(autoSaveTimer);
-    autoSaveTimer = null;
-    try {
-      localStorage.setItem(RECOVERY_KEY, JSON.stringify({
-        docId: currentDocId,
-        title: docTitleInput.value,
-        content: editor.value,
-        ts: Date.now(),
-      }));
-    } catch (_) { /* quota exhausted — nothing more we can do at teardown */ }
+  window.addEventListener('beforeunload', (e) => {
+    if (storageAvailable && (autoSaveTimer || saveInFlight)) {
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = null;
+      try {
+        localStorage.setItem(RECOVERY_KEY, JSON.stringify({
+          docId: currentDocId,
+          title: docTitleInput.value,
+          content: editor.value,
+          ts: Date.now(),
+        }));
+      } catch (_) { /* quota exhausted — nothing more we can do at teardown */ }
+    }
+    if (dirtyLinkedDocIds.size > 0) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+    revokePreviewBlobUrls();
   });
 
   // Shrink the unload-loss window during normal use: flush as soon as the
@@ -189,16 +322,34 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('종료 직전 저장되지 못한 내용을 복구했습니다.', 'success');
   }
 
-  async function switchToDocument(docId, { skipFlush = false } = {}) {
+  async function switchToDocument(docId, { skipFlush = false, closeDrawer = false } = {}) {
     if (!skipFlush) await flushCurrentDocument();
     const doc = await GijoStorage.getDocument(docId);
     if (!doc) return;
 
+    if (currentDocId !== doc.id) {
+      revokePreviewBlobUrls();
+    }
     currentDocId = doc.id;
+    currentFileMeta = extractFileMeta(doc);
+    if (currentFileMeta && currentFileMeta.fileDirty) {
+      dirtyLinkedDocIds.add(doc.id);
+    } else if (currentFileMeta) {
+      dirtyLinkedDocIds.delete(doc.id);
+    }
+    if (activeFolderHandle && currentFileMeta && currentFileMeta.fileHandle && !docFolderDirPathById.has(doc.id)) {
+      const resolvedDir = await resolveDocDirPathInActiveFolder(currentFileMeta.fileHandle);
+      if (resolvedDir !== null) {
+        docFolderDirPathById.set(doc.id, resolvedDir);
+      }
+    }
     docTitleInput.value = doc.title;
     editor.value = doc.content;
     updatePreview();
+    updateFileTagUI();
     renderDocumentList();
+    if (activeFolderHandle) syncFolderEntryStates();
+    if (closeDrawer && isMobileLayout()) setSidebarCollapsed(true);
   }
 
   async function createNewDocument(initial = {}) {
@@ -223,7 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
       title: initial.title || '제목 없는 문서',
       content: initial.content || '',
     });
-    await switchToDocument(doc.id, { skipFlush: true });
+    await switchToDocument(doc.id, { skipFlush: true, closeDrawer: true });
     showToast('새 문서가 생성되었습니다.', 'success');
   }
 
@@ -250,11 +401,15 @@ document.addEventListener('DOMContentLoaded', () => {
       if (saveInFlight) await saveInFlight;
     }
     await GijoStorage.deleteDocument(docId);
+    dirtyLinkedDocIds.delete(docId);
+    savedContentByDocId.delete(docId);
+    docFolderDirPathById.delete(docId);
     if (wasCurrent) {
       const remaining = await GijoStorage.getAllDocuments();
       await switchToDocument(remaining[0].id, { skipFlush: true });
     } else {
       renderDocumentList();
+      if (activeFolderHandle) syncFolderEntryStates();
     }
     showToast('문서가 삭제되었습니다.', 'info');
   }
@@ -307,20 +462,363 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function buildSnippet(plainContent, query) {
-    const idx = plainContent.toLowerCase().indexOf(query.toLowerCase());
+    const needle = query.toLowerCase();
+    const lines = plainContent.split(/\r?\n/);
+    for (const rawLine of lines) {
+      if (rawLine.toLowerCase().indexOf(needle) === -1) continue;
+      const line = rawLine.replace(/\s+/g, ' ').trim();
+      const hitIdx = line.toLowerCase().indexOf(needle);
+      if (hitIdx === -1) continue;
+      const radius = 20;
+      const start = Math.max(0, hitIdx - radius);
+      const end = Math.min(line.length, hitIdx + query.length + radius);
+      const excerpt = line.slice(start, end).trim();
+      return (start > 0 ? '…' : '') + excerpt + (end < line.length ? '…' : '');
+    }
+    const idx = plainContent.toLowerCase().indexOf(needle);
     if (idx === -1) return '';
-    const start = Math.max(0, idx - 24);
-    const raw = plainContent.slice(start, start + 90).replace(/\s+/g, ' ').trim();
-    return (start > 0 ? '…' : '') + raw + (start + 90 < plainContent.length ? '…' : '');
+    const start = Math.max(0, idx - 20);
+    const end = Math.min(plainContent.length, idx + query.length + 20);
+    const raw = plainContent.slice(start, end).replace(/\s+/g, ' ').trim();
+    return (start > 0 ? '…' : '') + raw + (end < plainContent.length ? '…' : '');
+  }
+
+  function sortDocuments(docs, sortOrder) {
+    return docs.slice().sort((a, b) => {
+      const pinDiff = (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
+      if (pinDiff !== 0) return pinDiff;
+      if (sortOrder === 'title') {
+        const cmp = (a.title || '').localeCompare(b.title || '', 'ko');
+        return cmp !== 0 ? cmp : (b.updatedAt || 0) - (a.updatedAt || 0);
+      }
+      if (sortOrder === 'created') {
+        const createdDiff = (b.createdAt || 0) - (a.createdAt || 0);
+        return createdDiff !== 0 ? createdDiff : (b.updatedAt || 0) - (a.updatedAt || 0);
+      }
+      return (b.updatedAt || 0) - (a.updatedAt || 0);
+    });
+  }
+
+  function matchesFilter(doc, filter) {
+    if (filter === 'linked') return !!doc.fileHandle;
+    if (filter === 'library') return !doc.fileHandle;
+    if (filter === 'pinned') return !!doc.pinned;
+    return true;
+  }
+
+  function getDocByteSize(doc) {
+    if (typeof doc.sizeBytes === 'number' && !Number.isNaN(doc.sizeBytes)) return doc.sizeBytes;
+    return new TextEncoder().encode(doc.content || '').length;
+  }
+
+  function formatSizeKb(bytes) {
+    const n = Number(bytes) || 0;
+    if (n <= 0) return '0KB';
+    const kb = n / 1024;
+    if (kb < 10) return `${kb.toFixed(1)}KB`;
+    return `${Math.round(kb).toLocaleString()}KB`;
+  }
+
+  function getEmptyLibraryMessage(totalCount, query, filter) {
+    if (totalCount === 0) {
+      return {
+        icon: 'fa-folder-open',
+        text: '문서함이 비어 있습니다. 「새 문서」를 눌러 시작해 보세요.',
+      };
+    }
+    if (query) {
+      return {
+        icon: 'fa-magnifying-glass',
+        text: '검색 결과가 없습니다. 다른 검색어나 필터를 시도해 보세요.',
+      };
+    }
+    if (filter === 'linked') {
+      return {
+        icon: 'fa-link',
+        text: '파일과 연결된 문서가 없습니다.',
+      };
+    }
+    if (filter === 'library') {
+      return {
+        icon: 'fa-book',
+        text: '문서함에만 저장된 문서가 없습니다.',
+      };
+    }
+    if (filter === 'pinned') {
+      return {
+        icon: 'fa-thumbtack',
+        text: '고정한 문서가 없습니다. 문서의 📌 단추를 눌러 위에 고정할 수 있습니다.',
+      };
+    }
+    return {
+      icon: 'fa-folder-open',
+      text: '표시할 문서가 없습니다.',
+    };
+  }
+
+  async function handleTogglePin(docId) {
+    const doc = await GijoStorage.getDocument(docId);
+    if (!doc) return;
+    const nextPinned = !doc.pinned;
+    await GijoStorage.setDocumentPinned(docId, nextPinned);
+    await renderDocumentList();
+    showToast(nextPinned ? '문서를 맨 위에 고정했습니다.' : '문서 고정을 풀었습니다.', 'info');
+  }
+
+  function startInlineRename(doc, infoEl, titleRowEl) {
+    if (selectMode) return;
+    if (renamingDocId && renamingDocId !== doc.id) {
+      renamingDocId = null;
+    }
+    renamingDocId = doc.id;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'document-rename-wrap';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'document-rename-input';
+    input.value = doc.title || '';
+    input.setAttribute('aria-label', '문서 제목 바꾸기');
+    if (doc.fileHandle) {
+      input.title = '제목만 바뀌며 디스크의 파일 이름은 바뀌지 않습니다.';
+    }
+
+    wrap.appendChild(input);
+
+    if (doc.fileHandle) {
+      const hint = document.createElement('div');
+      hint.className = 'document-rename-hint';
+      hint.setAttribute('role', 'note');
+      hint.textContent = '제목만 바뀌며 디스크의 파일 이름은 바뀌지 않습니다.';
+      wrap.appendChild(hint);
+    }
+
+    titleRowEl.hidden = true;
+    infoEl.insertBefore(wrap, titleRowEl);
+
+    let finished = false;
+    async function finish(commit) {
+      if (finished) return;
+      finished = true;
+      renamingDocId = null;
+      const nextTitle = input.value.trim();
+      if (!commit || !nextTitle || nextTitle === (doc.title || '')) {
+        await renderDocumentList();
+        return;
+      }
+      try {
+        if (doc.id === currentDocId) {
+          docTitleInput.value = nextTitle;
+          await saveCurrentDocument();
+        } else {
+          await GijoStorage.renameDocument(doc.id, nextTitle);
+          await renderDocumentList();
+        }
+        showToast(
+          doc.fileHandle
+            ? '문서 제목만 바꿨습니다. 디스크의 파일 이름은 그대로입니다.'
+            : '문서 제목을 바꿨습니다.',
+          'success'
+        );
+      } catch (err) {
+        console.error('Rename failed', err);
+        showToast('제목 바꾸기 중 오류가 발생했습니다.', 'warning');
+        await renderDocumentList();
+      }
+    }
+
+    wrap.addEventListener('click', (e) => e.stopPropagation());
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        finish(true);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        finish(false);
+      }
+    });
+    input.addEventListener('blur', () => {
+      finish(true);
+    });
+
+    input.focus();
+    input.select();
+  }
+
+  function updateSelectBarUI() {
+    if (!docSelectBar) return;
+    docSelectBar.hidden = !selectMode;
+    if (btnSelectMode) {
+      btnSelectMode.classList.toggle('active', selectMode);
+      btnSelectMode.setAttribute('aria-pressed', String(selectMode));
+      btnSelectMode.innerHTML = selectMode
+        ? '<i class="fa-solid fa-xmark"></i> 취소'
+        : '<i class="fa-regular fa-square-check"></i> 고르기';
+    }
+    const count = selectedDocIds.size;
+    if (docSelectCount) docSelectCount.textContent = `${count}개 선택`;
+    if (btnBulkExportMd) btnBulkExportMd.disabled = count === 0;
+    if (btnBulkDelete) btnBulkDelete.disabled = count === 0;
+    if (docSelectAll) {
+      const visibleCount = lastVisibleDocIds.length;
+      const checkedVisible = lastVisibleDocIds.filter((id) => selectedDocIds.has(id)).length;
+      docSelectAll.disabled = visibleCount === 0;
+      docSelectAll.checked = visibleCount > 0 && checkedVisible === visibleCount;
+      docSelectAll.indeterminate = checkedVisible > 0 && checkedVisible < visibleCount;
+    }
+  }
+
+  function setSelectMode(enabled) {
+    selectMode = !!enabled;
+    selectedDocIds.clear();
+    renamingDocId = null;
+    updateSelectBarUI();
+    renderDocumentList();
+  }
+
+  async function handleBulkExportMd() {
+    if (!requireLibrary() || selectedDocIds.size === 0) return;
+    await flushCurrentDocument();
+
+    const all = sortDocuments(await GijoStorage.getAllDocuments(), docSortOrder);
+    const targets = all.filter((doc) => selectedDocIds.has(doc.id));
+    if (!targets.length) return;
+
+    if (window.GijoFiles && GijoFiles.isFolderSupported()) {
+      let dirHandle;
+      try {
+        dirHandle = await GijoFiles.openFolder();
+      } catch (err) {
+        console.error('Bulk export folder picker failed', err);
+        showToast('폴더를 고르는 중 오류가 발생했습니다.', 'warning');
+        return;
+      }
+      if (!dirHandle) return;
+
+      const granted = await GijoFiles.ensurePermission(dirHandle, 'readwrite');
+      if (!granted) {
+        showToast('폴더 쓰기 권한이 허용되지 않아 내보내지 못했습니다.', 'warning');
+        return;
+      }
+
+      const usedLowerNames = new Set();
+      let written = 0;
+      let failed = 0;
+      for (const doc of targets) {
+        try {
+          const fileName = await pickUniqueExportFileName(dirHandle, usedLowerNames, doc.title);
+          const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+          await GijoFiles.writeHandle(fileHandle, doc.content || '', { lineEnding: 'LF', hadBom: false });
+          written++;
+        } catch (err) {
+          console.error('Bulk export doc to folder failed', doc.title, err);
+          failed++;
+        }
+      }
+
+      if (activeFolderHandle && await GijoFiles.sameEntry(activeFolderHandle, dirHandle)) {
+        await refreshActiveFolderSilently();
+      }
+
+      if (written > 0 && failed === 0) {
+        showToast(`선택한 문서 ${written}개를 '${dirHandle.name}' 폴더로 내보냈습니다.`, 'success');
+      } else if (written > 0) {
+        showToast(`문서 ${written}개를 내보냈습니다 (${failed}개 실패).`, 'warning');
+      } else {
+        showToast('문서를 폴더로 내보내지 못했습니다.', 'warning');
+      }
+      setSelectMode(false);
+      return;
+    }
+
+    const usedLowerNames = new Set();
+    for (let i = 0; i < targets.length; i++) {
+      const doc = targets[i];
+      const base = sanitizeExportBaseName(doc.title);
+      let idx = 1;
+      let fileName = `${base}.md`;
+      while (usedLowerNames.has(fileName.toLowerCase())) {
+        idx++;
+        fileName = `${base} (${idx}).md`;
+      }
+      usedLowerNames.add(fileName.toLowerCase());
+      GijoExport.downloadBlob(
+        new Blob([doc.content || ''], { type: 'text/markdown;charset=utf-8;' }),
+        fileName
+      );
+      if (i + 1 < targets.length) {
+        await new Promise((resolve) => setTimeout(resolve, 120));
+      }
+    }
+    showToast(`선택한 문서 ${targets.length}개를 .md 파일로 내려받았습니다.`, 'success');
+    setSelectMode(false);
+  }
+
+  async function handleBulkDelete() {
+    if (!requireLibrary() || selectedDocIds.size === 0) return;
+    const ids = Array.from(selectedDocIds);
+    if (!confirm(`${ids.length}개를 지울까요? 디스크의 파일은 지워지지 않습니다`)) return;
+
+    const deletesCurrent = currentDocId !== null && selectedDocIds.has(currentDocId);
+    if (deletesCurrent) {
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = null;
+      if (saveInFlight) await saveInFlight;
+    }
+
+    for (const id of ids) {
+      await GijoStorage.deleteDocument(id);
+      dirtyLinkedDocIds.delete(id);
+      savedContentByDocId.delete(id);
+      docFolderDirPathById.delete(id);
+    }
+
+    selectMode = false;
+    selectedDocIds.clear();
+    updateSelectBarUI();
+
+    if (deletesCurrent) {
+      const remaining = sortDocuments(await GijoStorage.getAllDocuments(), docSortOrder);
+      if (remaining.length > 0) {
+        await switchToDocument(remaining[0].id, { skipFlush: true });
+      } else {
+        revokePreviewBlobUrls();
+        currentDocId = null;
+        currentFileMeta = null;
+        docTitleInput.value = '';
+        editor.value = '';
+        updatePreview();
+        updateFileTagUI();
+        await renderDocumentList();
+        if (activeFolderHandle) await syncFolderEntryStates();
+      }
+    } else {
+      await renderDocumentList();
+      if (activeFolderHandle) await syncFolderEntryStates();
+    }
+
+    showToast(`${ids.length}개 문서를 문서함에서 지웠습니다. 디스크의 파일은 지워지지 않았습니다.`, 'info');
   }
 
   async function renderDocumentList() {
     if (!storageAvailable) return;
+    if (renamingDocId) return;
+
     const query = (docSearchInput.value || '').trim();
-    const all = await GijoStorage.getAllDocuments();
+    const allRaw = await GijoStorage.getAllDocuments();
+    const all = sortDocuments(allRaw, docSortOrder);
+
+    const existingIds = new Set(all.map((d) => d.id));
+    for (const id of Array.from(selectedDocIds)) {
+      if (!existingIds.has(id)) selectedDocIds.delete(id);
+    }
 
     const rows = [];
     for (const doc of all) {
+      if (!matchesFilter(doc, docFilter)) continue;
       if (!query) { rows.push({ doc, snippet: '' }); continue; }
       const q = query.toLowerCase();
       const titleHit = (doc.title || '').toLowerCase().includes(q);
@@ -330,29 +828,98 @@ document.addEventListener('DOMContentLoaded', () => {
       rows.push({ doc, snippet: bodyHit ? buildSnippet(plain, query) : '' });
     }
 
+    lastVisibleDocIds = rows.map(({ doc }) => doc.id);
+    updateSelectBarUI();
+
     documentListEl.innerHTML = '';
     if (!rows.length) {
+      const emptyInfo = getEmptyLibraryMessage(all.length, query, docFilter);
       const empty = document.createElement('div');
       empty.className = 'document-list-empty';
-      empty.textContent = '검색 결과가 없습니다.';
+      const icon = document.createElement('i');
+      icon.className = `fa-solid ${emptyInfo.icon}`;
+      icon.setAttribute('aria-hidden', 'true');
+      const text = document.createElement('span');
+      text.textContent = emptyInfo.text;
+      empty.appendChild(icon);
+      empty.appendChild(text);
       documentListEl.appendChild(empty);
       return;
     }
 
     rows.forEach(({ doc, snippet }) => {
       const item = document.createElement('div');
-      item.className = 'document-item' + (doc.id === currentDocId ? ' active' : '');
+      item.className = 'document-item'
+        + (doc.id === currentDocId ? ' active' : '')
+        + (doc.pinned ? ' pinned' : '')
+        + (selectMode ? ' selecting' : '');
       item.dataset.docId = doc.id;
+
+      const mainRow = document.createElement('div');
+      mainRow.className = 'document-item-main';
+
+      if (selectMode) {
+        const checkWrap = document.createElement('label');
+        checkWrap.className = 'document-item-check-wrap';
+        checkWrap.addEventListener('click', (e) => e.stopPropagation());
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = 'document-item-checkbox';
+        cb.checked = selectedDocIds.has(doc.id);
+        cb.setAttribute('aria-label', `${doc.title || '제목 없는 문서'} 선택`);
+        cb.addEventListener('change', () => {
+          if (cb.checked) selectedDocIds.add(doc.id);
+          else selectedDocIds.delete(doc.id);
+          updateSelectBarUI();
+        });
+        checkWrap.appendChild(cb);
+        mainRow.appendChild(checkWrap);
+      }
 
       const info = document.createElement('div');
       info.className = 'document-item-info';
+
+      const titleRow = document.createElement('div');
+      titleRow.className = 'document-item-title-row';
+
       const titleEl = document.createElement('div');
       titleEl.className = 'document-item-title';
+      titleEl.title = doc.fileHandle
+        ? `${doc.title || '제목 없는 문서'} (두 번 눌러 이름 바꾸기 — 제목만 바뀌고 디스크 파일 이름은 유지)`
+        : `${doc.title || '제목 없는 문서'} (두 번 눌러 이름 바꾸기)`;
       renderHighlighted(titleEl, doc.title || '제목 없는 문서', query);
+      titleEl.addEventListener('dblclick', (e) => {
+        if (selectMode) return;
+        e.stopPropagation();
+        startInlineRename(doc, info, titleRow);
+      });
+      titleRow.appendChild(titleEl);
+
+      if (doc.fileHandle) {
+        const linkBadge = document.createElement('span');
+        linkBadge.className = 'document-item-link';
+        linkBadge.title = `연결된 파일: ${doc.fileName || doc.fileHandle.name || ''}`;
+        linkBadge.innerHTML = '<i class="fa-solid fa-link" aria-hidden="true"></i>';
+        titleRow.appendChild(linkBadge);
+        if (doc.fileDirty || dirtyLinkedDocIds.has(doc.id)) {
+          const dirtyBadge = document.createElement('span');
+          dirtyBadge.className = 'document-item-dirty';
+          dirtyBadge.title = '파일에 저장되지 않은 변경 있음';
+          dirtyBadge.textContent = '●';
+          titleRow.appendChild(dirtyBadge);
+        }
+      }
+
+      const sizeStr = formatSizeKb(getDocByteSize(doc));
+      const charLen = (doc.content || '').length;
+      const imgCnt = typeof doc.imageCount === 'number' ? doc.imageCount : 0;
+      const metaText = `${sizeStr} · 그림 ${imgCnt}개 · ${charLen.toLocaleString()}자 · ${formatRelativeTime(doc.updatedAt)}`;
       const metaEl = document.createElement('div');
       metaEl.className = 'document-item-meta';
-      metaEl.textContent = `${formatRelativeTime(doc.updatedAt)} · 이미지 ${doc.imageCount}개`;
-      info.appendChild(titleEl);
+      metaEl.textContent = metaText;
+      metaEl.title = metaText;
+
+      info.appendChild(titleRow);
       if (snippet) {
         const snippetEl = document.createElement('div');
         snippetEl.className = 'document-item-snippet';
@@ -361,17 +928,51 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       info.appendChild(metaEl);
 
+      mainRow.appendChild(info);
+
+      const pinBtn = document.createElement('button');
+      pinBtn.type = 'button';
+      pinBtn.className = 'document-pin-btn' + (doc.pinned ? ' pinned' : '');
+      pinBtn.title = doc.pinned ? '고정 풀기' : '맨 위에 고정';
+      pinBtn.setAttribute('aria-label', doc.pinned ? '고정 풀기' : '맨 위에 고정');
+      pinBtn.setAttribute('aria-pressed', String(!!doc.pinned));
+      pinBtn.textContent = '📌';
+      pinBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleTogglePin(doc.id);
+      });
+      mainRow.appendChild(pinBtn);
+
       const actions = document.createElement('div');
       actions.className = 'document-item-actions';
+      const renameTitle = doc.fileHandle
+        ? '이름 바꾸기 (제목만 바뀌며 디스크의 파일 이름은 바뀌지 않습니다)'
+        : '이름 바꾸기';
+      actions.appendChild(makeIconButton('fa-pen', renameTitle, () => startInlineRename(doc, info, titleRow)));
+      if (doc.fileHandle) {
+        actions.appendChild(makeIconButton('fa-link-slash', '파일 연결 끊기', () => handleUnlinkFile(doc.id)));
+      }
       actions.appendChild(makeIconButton('fa-clock-rotate-left', '히스토리', () => openHistoryModal(doc.id)));
       actions.appendChild(makeIconButton('fa-copy', '복제', () => handleDuplicateDocument(doc.id)));
       actions.appendChild(makeIconButton('fa-trash', '삭제', () => handleDeleteDocument(doc.id)));
 
-      item.appendChild(info);
+      item.appendChild(mainRow);
       item.appendChild(actions);
       item.addEventListener('click', (e) => {
-        if (e.target.closest('.document-item-action')) return;
-        if (doc.id !== currentDocId) switchToDocument(doc.id);
+        if (e.target.closest('.document-item-action') || e.target.closest('.document-pin-btn') || e.target.closest('.document-rename-wrap')) return;
+        if (selectMode) {
+          if (selectedDocIds.has(doc.id)) selectedDocIds.delete(doc.id);
+          else selectedDocIds.add(doc.id);
+          const cb = item.querySelector('.document-item-checkbox');
+          if (cb) cb.checked = selectedDocIds.has(doc.id);
+          updateSelectBarUI();
+          return;
+        }
+        if (doc.id !== currentDocId) {
+          switchToDocument(doc.id, { closeDrawer: true });
+        } else if (isMobileLayout()) {
+          setSidebarCollapsed(true);
+        }
       });
 
       documentListEl.appendChild(item);
@@ -409,12 +1010,23 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!confirm('이 버전으로 복원하시겠습니까? 현재 내용은 덮어써집니다.')) return;
     const doc = await GijoStorage.restoreSnapshot(historyId);
     historyModal.classList.remove('open');
+    if (doc.fileHandle) {
+      const dirty = !savedContentByDocId.has(doc.id) || doc.content !== savedContentByDocId.get(doc.id);
+      await GijoStorage.updateDocumentContent(doc.id, { title: doc.title, content: doc.content, fileDirty: dirty });
+      if (dirty) dirtyLinkedDocIds.add(doc.id);
+      else dirtyLinkedDocIds.delete(doc.id);
+      if (doc.id === currentDocId && currentFileMeta) {
+        currentFileMeta.fileDirty = dirty;
+      }
+    }
     if (doc.id === currentDocId) {
       docTitleInput.value = doc.title;
       editor.value = doc.content;
       updatePreview();
+      updateFileTagUI();
     }
     renderDocumentList();
+    if (activeFolderHandle) syncFolderEntryStates();
     showToast('이전 버전으로 복원되었습니다.', 'success');
   }
 
@@ -434,6 +1046,7 @@ document.addEventListener('DOMContentLoaded', () => {
     textarea.selectionStart = textarea.selectionEnd = start + textToInsert.length;
     textarea.focus();
     updatePreview();
+    markCurrentContentChanged();
     scheduleAutoSave();
   }
 
@@ -507,7 +1120,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (storageAvailable && targetDocId && targetDocId !== currentDocId) {
         const doc = await GijoStorage.getDocument(targetDocId);
         if (doc) {
-          await GijoStorage.updateDocumentContent(targetDocId, { title: doc.title, content: doc.content + imgMarkdown });
+          const nextContent = doc.content + imgMarkdown;
+          const fileDirty = doc.fileHandle ? true : undefined;
+          await GijoStorage.updateDocumentContent(targetDocId, { title: doc.title, content: nextContent, fileDirty });
+          if (doc.fileHandle) dirtyLinkedDocIds.add(targetDocId);
           renderDocumentList();
           showToast('문서가 전환되어 이미지를 원래 문서의 끝에 추가했습니다.', 'info');
         }
@@ -570,7 +1186,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (doc) {
         const updated = replaceNthOccurrence(doc.content, src, edited, occurrence);
         if (updated) {
-          await GijoStorage.updateDocumentContent(targetDocId, { title: doc.title, content: updated });
+          const fileDirty = doc.fileHandle ? true : undefined;
+          await GijoStorage.updateDocumentContent(targetDocId, { title: doc.title, content: updated, fileDirty });
+          if (doc.fileHandle) dirtyLinkedDocIds.add(targetDocId);
           renderDocumentList();
           showToast('문서가 전환되어 원래 문서의 이미지에 주석을 적용했습니다.', 'info');
           return;
@@ -587,6 +1205,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     editor.value = updated;
     updatePreview();
+    markCurrentContentChanged();
     scheduleAutoSave();
     showToast('이미지에 주석이 적용되었습니다.', 'success');
   });
@@ -652,14 +1271,52 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   dropOverlay.addEventListener('drop', (e) => {
-    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
-    if (!files.length) return;
-    // Markdown files become new documents; everything else goes through the
-    // image pipeline (which rejects non-images with its own message).
-    const markdown = files.filter(isMarkdownFile);
-    const rest = files.filter((f) => !isMarkdownFile(f));
-    if (markdown.length) importMarkdownFiles(markdown);
-    if (rest.length) processImageFiles(rest);
+    const items = Array.from((e.dataTransfer && e.dataTransfer.items) || []);
+    const rawFiles = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+    if (!items.length && !rawFiles.length) return;
+
+    // DataTransferItem.getAsFileSystemHandle() MUST be called synchronously
+    // before any await; browsers clear dataTransfer.items once drop returns.
+    const canLink = window.GijoFiles && GijoFiles.isSupported();
+    const entries = items
+      .filter((item) => item.kind === 'file')
+      .map((item) => ({
+        file: item.getAsFile(),
+        handlePromise: (canLink && typeof item.getAsFileSystemHandle === 'function')
+          ? item.getAsFileSystemHandle().catch(() => null)
+          : null,
+      }));
+
+    (async () => {
+      const mdHandles = [];
+      const fallbackMdFiles = [];
+      const restFiles = [];
+
+      if (entries.length) {
+        const resolved = await Promise.all(entries.map(async (entry) => ({
+          file: entry.file,
+          handle: entry.handlePromise ? await entry.handlePromise : null,
+        })));
+        for (const { file, handle } of resolved) {
+          if (handle && handle.kind === 'file' && isMarkdownFileName(handle.name)) {
+            mdHandles.push(handle);
+          } else if (file && isMarkdownFile(file)) {
+            fallbackMdFiles.push(file);
+          } else if (file) {
+            restFiles.push(file);
+          }
+        }
+      } else {
+        for (const f of rawFiles) {
+          if (isMarkdownFile(f)) fallbackMdFiles.push(f);
+          else restFiles.push(f);
+        }
+      }
+
+      if (mdHandles.length) await openLinkedHandles(mdHandles);
+      if (fallbackMdFiles.length) await importMarkdownFiles(fallbackMdFiles);
+      if (restFiles.length) await processImageFiles(restFiles);
+    })();
   });
 
   // Image File Picker Input
@@ -774,15 +1431,34 @@ document.addEventListener('DOMContentLoaded', () => {
       e.stopPropagation();
       exportMenu.classList.remove('open');
       btnExportToggle.setAttribute('aria-expanded', 'false');
-      handleExport(btn.dataset.export);
+      if (btn.dataset.action === 'save-as') {
+        handleSaveAs();
+      } else if (btn.dataset.export) {
+        handleExport(btn.dataset.export);
+      }
     });
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-    exportMenu.classList.remove('open');
-    btnExportToggle.setAttribute('aria-expanded', 'false');
-    historyModal.classList.remove('open');
+    if (e.key === 'Escape') {
+      exportMenu.classList.remove('open');
+      btnExportToggle.setAttribute('aria-expanded', 'false');
+      historyModal.classList.remove('open');
+      closeNewFileModal();
+      if (window.innerWidth <= SIDEBAR_AUTO_COLLAPSE_WIDTH && !appBody.classList.contains('sidebar-collapsed')) {
+        setSidebarCollapsed(true);
+      }
+      return;
+    }
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+    const key = e.key.toLowerCase();
+    if (key === 'o') {
+      e.preventDefault();
+      handleOpenFile();
+    } else if (key === 's') {
+      e.preventDefault();
+      triggerSaveShortcut();
+    }
   });
 
   btnCopyMd.addEventListener('click', () => {
@@ -804,30 +1480,126 @@ document.addEventListener('DOMContentLoaded', () => {
       editor.value = '';
       docTitleInput.value = '제목 없는 문서';
       updatePreview();
+      markCurrentContentChanged();
       scheduleAutoSave();
       showToast('에디터가 초기화되었습니다.', 'info');
     }
   });
 
-  // --- 9. Sidebar ---
+  // --- 9. Sidebar & Mobile Layout ---
+  function isMobileLayout() {
+    return window.innerWidth <= MOBILE_BREAKPOINT;
+  }
+
   function setSidebarCollapsed(collapsed) {
     appBody.classList.toggle('sidebar-collapsed', collapsed);
     btnSidebarToggle.setAttribute('aria-expanded', String(!collapsed));
   }
 
   function loadSidebarState() {
+    if (isMobileLayout()) {
+      setSidebarCollapsed(true);
+      return;
+    }
     const saved = localStorage.getItem(STORAGE_KEY_SIDEBAR_COLLAPSED);
     const collapsed = saved !== null ? saved === '1' : window.innerWidth <= SIDEBAR_AUTO_COLLAPSE_WIDTH;
     setSidebarCollapsed(collapsed);
   }
 
+  function setMobileView(view) {
+    mobileView = view === 'preview' ? 'preview' : 'write';
+    const isPreview = mobileView === 'preview';
+    splitPane.classList.toggle('mobile-view-write', !isPreview);
+    splitPane.classList.toggle('mobile-view-preview', isPreview);
+    if (mobileTabWrite) {
+      mobileTabWrite.classList.toggle('active', !isPreview);
+      mobileTabWrite.setAttribute('aria-selected', String(!isPreview));
+    }
+    if (mobileTabPreview) {
+      mobileTabPreview.classList.toggle('active', isPreview);
+      mobileTabPreview.setAttribute('aria-selected', String(isPreview));
+    }
+  }
+
   btnSidebarToggle.addEventListener('click', () => {
     const collapsed = !appBody.classList.contains('sidebar-collapsed');
     setSidebarCollapsed(collapsed);
-    localStorage.setItem(STORAGE_KEY_SIDEBAR_COLLAPSED, collapsed ? '1' : '0');
+    if (!isMobileLayout()) {
+      localStorage.setItem(STORAGE_KEY_SIDEBAR_COLLAPSED, collapsed ? '1' : '0');
+    }
+  });
+
+  if (sidebarBackdrop) {
+    sidebarBackdrop.addEventListener('click', () => {
+      setSidebarCollapsed(true);
+    });
+  }
+
+  if (mobileTabWrite) {
+    mobileTabWrite.addEventListener('click', () => setMobileView('write'));
+  }
+  if (mobileTabPreview) {
+    mobileTabPreview.addEventListener('click', () => setMobileView('preview'));
+  }
+
+  window.addEventListener('resize', () => {
+    const nowMobile = isMobileLayout();
+    if (nowMobile !== wasMobileLayout) {
+      wasMobileLayout = nowMobile;
+      loadSidebarState();
+    }
   });
 
   btnNewDoc.addEventListener('click', () => createNewDocument());
+
+  if (docSortSelect) {
+    docSortSelect.value = docSortOrder;
+    docSortSelect.addEventListener('change', () => {
+      const next = docSortSelect.value;
+      docSortOrder = (next === 'title' || next === 'created') ? next : 'updated';
+      try { localStorage.setItem(STORAGE_KEY_SORT, docSortOrder); } catch (_) { /* ignore */ }
+      renderDocumentList();
+    });
+  }
+
+  if (docFilterChips) {
+    docFilterChips.addEventListener('click', (e) => {
+      const chip = e.target.closest('.filter-chip');
+      if (!chip) return;
+      const nextFilter = chip.dataset.filter || 'all';
+      if (nextFilter === docFilter) return;
+      docFilter = nextFilter;
+      docFilterChips.querySelectorAll('.filter-chip').forEach((btn) => {
+        const active = btn.dataset.filter === docFilter;
+        btn.classList.toggle('active', active);
+        btn.setAttribute('aria-pressed', String(active));
+      });
+      renderDocumentList();
+    });
+  }
+
+  if (btnSelectMode) {
+    btnSelectMode.addEventListener('click', () => setSelectMode(!selectMode));
+  }
+
+  if (docSelectAll) {
+    docSelectAll.addEventListener('change', () => {
+      if (docSelectAll.checked) {
+        lastVisibleDocIds.forEach((id) => selectedDocIds.add(id));
+      } else {
+        lastVisibleDocIds.forEach((id) => selectedDocIds.delete(id));
+      }
+      renderDocumentList();
+    });
+  }
+
+  if (btnBulkExportMd) {
+    btnBulkExportMd.addEventListener('click', () => handleBulkExportMd());
+  }
+
+  if (btnBulkDelete) {
+    btnBulkDelete.addEventListener('click', () => handleBulkDelete());
+  }
 
   // Debounced so typing doesn't re-scan every document's content per keystroke.
   let searchTimer = null;
@@ -909,8 +1681,12 @@ document.addEventListener('DOMContentLoaded', () => {
     await importMarkdownFiles(files);
   });
 
+  function isMarkdownFileName(name) {
+    return /\.(md|markdown)$/i.test(name || '');
+  }
+
   function isMarkdownFile(file) {
-    return /\.(md|markdown)$/i.test(file.name) || file.type === 'text/markdown';
+    return isMarkdownFileName(file && file.name) || (file && file.type === 'text/markdown');
   }
 
   async function importMarkdownFiles(files) {
@@ -920,11 +1696,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let firstId = null;
     let imported = 0;
+    let euckrNotified = false;
     for (const file of files) {
       try {
-        const content = await file.text();
+        let content;
+        if (window.GijoFiles && typeof file.arrayBuffer === 'function') {
+          const decoded = GijoFiles.decodeBytes(new Uint8Array(await file.arrayBuffer()));
+          content = decoded.text;
+          if (decoded.encoding === 'euc-kr' && !euckrNotified) {
+            euckrNotified = true;
+            showToast('EUC-KR 로 읽었습니다. 저장은 UTF-8 로 됩니다', 'info');
+          }
+        } else {
+          content = await file.text();
+        }
         const doc = await GijoStorage.createDocument({
-          title: file.name.replace(/\.(md|markdown)$/i, '') || '제목 없는 문서',
+          title: file.name.replace(/\.(md|markdown|txt)$/i, '') || '제목 없는 문서',
           content,
         });
         if (!firstId) firstId = doc.id;
@@ -943,6 +1730,1055 @@ document.addEventListener('DOMContentLoaded', () => {
     else await renderDocumentList();
     showToast(`${imported}개의 마크다운 파일을 가져왔습니다.`, 'success');
   }
+
+  // --- 9c. Local File Open / Save / Save As / Unlink (File System Access API) ---
+  function docKey(docId) {
+    return storageAvailable ? docId : '__legacy__';
+  }
+
+  function extractFileMeta(doc) {
+    if (!doc || !doc.fileHandle) return null;
+    return {
+      fileHandle: doc.fileHandle,
+      fileName: doc.fileName || doc.fileHandle.name || '',
+      lineEnding: doc.lineEnding || 'LF',
+      hadBom: !!doc.hadBom,
+      encoding: doc.encoding || 'utf-8',
+      fileDirty: !!doc.fileDirty,
+    };
+  }
+
+  function updateFileTagUI() {
+    const supported = !!(window.GijoFiles && GijoFiles.isSupported());
+    if (currentFileMeta && currentFileMeta.fileHandle) {
+      fileUnsupportedNotice.hidden = true;
+      fileTagEl.hidden = false;
+      fileTagName.textContent = currentFileMeta.fileName;
+      fileTagLabel.title = currentFileMeta.fileName + (currentFileMeta.fileDirty ? ' (저장되지 않은 변경 있음)' : ' (파일과 연결됨)');
+      fileDirtyDot.hidden = !currentFileMeta.fileDirty;
+      btnSaveFile.classList.toggle('has-dirty', !!currentFileMeta.fileDirty);
+      btnSaveFile.title = '연결된 파일에 저장 (Ctrl+S)';
+    } else {
+      fileTagEl.hidden = true;
+      fileDirtyDot.hidden = true;
+      btnSaveFile.classList.remove('has-dirty');
+      btnSaveFile.title = supported ? '파일에 저장 (Ctrl+S)' : 'Markdown (.md) 파일로 내려받기 (Ctrl+S)';
+      const dismissed = !!localStorage.getItem(UNSUPPORTED_NOTICE_KEY);
+      fileUnsupportedNotice.hidden = supported || dismissed;
+    }
+  }
+
+  function markCurrentContentChanged() {
+    if (!currentFileMeta || !currentFileMeta.fileHandle) return;
+    const key = docKey(currentDocId);
+    const dirty = !savedContentByDocId.has(key) || editor.value !== savedContentByDocId.get(key);
+    if (dirty !== currentFileMeta.fileDirty) {
+      currentFileMeta.fileDirty = dirty;
+      if (dirty) dirtyLinkedDocIds.add(key);
+      else dirtyLinkedDocIds.delete(key);
+      updateFileTagUI();
+      if (storageAvailable) renderDocumentList();
+      if (activeFolderHandle) syncFolderEntryStates();
+    }
+  }
+
+  function deriveTitleFromFileName(name) {
+    return (name || '').replace(/\.(md|markdown|txt)$/i, '').trim() || '제목 없는 문서';
+  }
+
+  async function openLinkedHandles(handles, options = {}) {
+    if (!window.GijoFiles) return;
+    const fileHandles = Array.from(handles || []).filter((h) => h && h.kind === 'file');
+    if (!fileHandles.length) return;
+    const knownDirPath = typeof options.dirPath === 'string' ? options.dirPath : null;
+    const silentExistingToast = !!options.silentExistingToast;
+
+    await flushCurrentDocument();
+
+    let targetDocId = null;
+    let openedCount = 0;
+    let openedSingleName = '';
+    let existingSingleName = '';
+    let euckrNotified = false;
+    const existingDocs = storageAvailable ? await GijoStorage.getAllDocuments() : [];
+
+    for (const handle of fileHandles) {
+      try {
+        let existing = null;
+        if (storageAvailable) {
+          for (const candidate of existingDocs) {
+            if (candidate.fileHandle && await GijoFiles.sameEntry(candidate.fileHandle, handle)) {
+              existing = candidate;
+              break;
+            }
+          }
+        }
+
+        if (existing) {
+          if (!targetDocId) targetDocId = existing.id;
+          if (knownDirPath !== null) docFolderDirPathById.set(existing.id, knownDirPath);
+          existingSingleName = existing.fileName || handle.name || '';
+          const isDirty = !!(existing.fileDirty || dirtyLinkedDocIds.has(existing.id));
+          if (!isDirty) {
+            try {
+              const read = await GijoFiles.readHandle(handle);
+              if (read.encoding === 'euc-kr' && !euckrNotified) {
+                euckrNotified = true;
+                showToast('EUC-KR 로 읽었습니다. 저장은 UTF-8 로 됩니다', 'info');
+              }
+              await GijoStorage.updateDocumentContent(existing.id, {
+                title: existing.title,
+                content: read.text,
+                fileDirty: false,
+              });
+              await GijoStorage.updateDocumentFileLink(existing.id, {
+                fileHandle: handle,
+                fileName: read.fileName,
+                lineEnding: read.lineEnding,
+                hadBom: read.hadBom,
+                encoding: read.encoding,
+                fileDirty: false,
+              });
+              savedContentByDocId.set(existing.id, read.text);
+              dirtyLinkedDocIds.delete(existing.id);
+            } catch (_) { /* keep existing library copy if re-read fails */ }
+          }
+          continue;
+        }
+
+        const read = await GijoFiles.readHandle(handle);
+        if (read.encoding === 'euc-kr' && !euckrNotified) {
+          euckrNotified = true;
+          showToast('EUC-KR 로 읽었습니다. 저장은 UTF-8 로 됩니다', 'info');
+        }
+
+        const title = deriveTitleFromFileName(read.fileName);
+        if (storageAvailable) {
+          const doc = await GijoStorage.createDocument({
+            title,
+            content: read.text,
+            fileHandle: handle,
+            fileName: read.fileName,
+            lineEnding: read.lineEnding,
+            hadBom: read.hadBom,
+            encoding: read.encoding,
+            fileDirty: false,
+          });
+          existingDocs.unshift(doc);
+          savedContentByDocId.set(doc.id, read.text);
+          dirtyLinkedDocIds.delete(doc.id);
+          if (knownDirPath !== null) docFolderDirPathById.set(doc.id, knownDirPath);
+          if (!targetDocId) targetDocId = doc.id;
+          openedCount++;
+          openedSingleName = read.fileName;
+        } else {
+          revokePreviewBlobUrls();
+          docTitleInput.value = title;
+          editor.value = read.text;
+          currentFileMeta = {
+            fileHandle: handle,
+            fileName: read.fileName,
+            lineEnding: read.lineEnding,
+            hadBom: read.hadBom,
+            encoding: read.encoding,
+            fileDirty: false,
+          };
+          savedContentByDocId.set('__legacy__', read.text);
+          dirtyLinkedDocIds.delete('__legacy__');
+          if (knownDirPath !== null) docFolderDirPathById.set('__legacy__', knownDirPath);
+          updatePreview();
+          updateFileTagUI();
+          scheduleAutoSave();
+          openedCount++;
+          openedSingleName = read.fileName;
+          break;
+        }
+      } catch (err) {
+        console.error('Failed to open file handle', handle && handle.name, err);
+        if (err && err.code === 'PERMISSION_DENIED') {
+          showToast('파일 읽기 권한이 허용되지 않아 열지 못했습니다.', 'warning');
+        } else {
+          showToast(`파일을 열 수 없습니다: ${(handle && handle.name) || ''}`, 'warning');
+        }
+      }
+    }
+
+    if (storageAvailable) {
+      if (targetDocId) await switchToDocument(targetDocId, { skipFlush: true });
+      else await renderDocumentList();
+    }
+
+    if (openedCount > 1) {
+      showToast(`${openedCount}개의 파일을 열었습니다.`, 'success');
+    } else if (openedCount === 1) {
+      showToast(`파일을 열었습니다: ${openedSingleName}`, 'success');
+    } else if (existingSingleName && !silentExistingToast) {
+      showToast(`이미 열려 있는 파일로 이동했습니다: ${existingSingleName}`, 'info');
+    }
+  }
+
+  async function handleOpenFile() {
+    if (!window.GijoFiles || !GijoFiles.isSupported()) {
+      updateFileTagUI();
+      if (!storageAvailable) {
+        showToast('이 브라우저에서는 문서함 기능을 사용할 수 없습니다.', 'warning');
+        return;
+      }
+      mdFileInput.click();
+      return;
+    }
+    try {
+      const handles = await GijoFiles.openFiles();
+      if (handles.length) await openLinkedHandles(handles);
+    } catch (err) {
+      console.error('Open file failed', err);
+      showToast('파일을 여는 중 오류가 발생했습니다.', 'warning');
+    }
+  }
+
+  async function handleSaveFile() {
+    if (!window.GijoFiles || !GijoFiles.isSupported()) {
+      updateFileTagUI();
+      await handleExport('md');
+      return;
+    }
+    if (!currentFileMeta || !currentFileMeta.fileHandle) {
+      await handleSaveAs();
+      return;
+    }
+
+    const docId = currentDocId;
+    const key = docKey(docId);
+    const content = editor.value;
+    const meta = { ...currentFileMeta };
+
+    try {
+      const res = await GijoFiles.writeHandle(meta.fileHandle, content, {
+        hadBom: meta.hadBom,
+        lineEnding: meta.lineEnding,
+      });
+      const updatedMeta = {
+        ...meta,
+        fileName: res.fileName || meta.fileName,
+        encoding: 'utf-8',
+        fileDirty: false,
+      };
+      savedContentByDocId.set(key, content);
+      dirtyLinkedDocIds.delete(key);
+      if (currentDocId === docId) {
+        currentFileMeta = updatedMeta;
+        updateFileTagUI();
+      }
+      if (storageAvailable && docId) {
+        await GijoStorage.updateDocumentFileLink(docId, updatedMeta);
+        if (currentDocId === docId) await saveCurrentDocument();
+        else await renderDocumentList();
+      }
+      if (activeFolderHandle) {
+        await updateSavedEntryTimestamp(meta.fileHandle);
+        await syncFolderEntryStates();
+      }
+      showToast(`파일에 저장했습니다: ${updatedMeta.fileName}`, 'success');
+    } catch (err) {
+      if (err && err.code === 'PERMISSION_DENIED') {
+        showToast('파일 쓰기 권한이 허용되지 않아 저장하지 못했습니다.', 'warning');
+      } else {
+        console.error('Save file failed', err);
+        showToast('파일 저장 중 오류가 발생했습니다.', 'warning');
+      }
+    }
+  }
+
+  async function handleSaveAs() {
+    if (!window.GijoFiles || !GijoFiles.isSupported()) {
+      updateFileTagUI();
+      await handleExport('md');
+      return;
+    }
+
+    const docId = currentDocId;
+    const key = docKey(docId);
+    const title = docTitleInput.value;
+    const content = editor.value;
+    const hadBom = !!(currentFileMeta && currentFileMeta.hadBom);
+    const lineEnding = (currentFileMeta && currentFileMeta.lineEnding) || 'LF';
+
+    try {
+      const res = await GijoFiles.saveAs(title, content, { hadBom, lineEnding });
+      if (!res) return; // user cancelled picker
+      const newMeta = {
+        fileHandle: res.handle,
+        fileName: res.fileName,
+        lineEnding,
+        hadBom,
+        encoding: 'utf-8',
+        fileDirty: false,
+      };
+      savedContentByDocId.set(key, content);
+      dirtyLinkedDocIds.delete(key);
+      if (currentDocId === docId) {
+        currentFileMeta = newMeta;
+        updateFileTagUI();
+      }
+      if (storageAvailable && docId) {
+        await GijoStorage.updateDocumentFileLink(docId, newMeta);
+        if (currentDocId === docId) await saveCurrentDocument();
+        else await renderDocumentList();
+      }
+      if (activeFolderHandle) {
+        const resolvedDir = await resolveDocDirPathInActiveFolder(res.handle);
+        if (resolvedDir !== null) {
+          docFolderDirPathById.set(key, resolvedDir);
+          await refreshActiveFolderSilently();
+          if (currentDocId === docId) updatePreview();
+        } else {
+          await syncFolderEntryStates();
+        }
+      }
+      showToast(`파일에 저장했습니다: ${newMeta.fileName}`, 'success');
+    } catch (err) {
+      if (err && err.code === 'PERMISSION_DENIED') {
+        showToast('파일 쓰기 권한이 허용되지 않아 저장하지 못했습니다.', 'warning');
+      } else {
+        console.error('Save As failed', err);
+        showToast('다른 이름으로 저장 중 오류가 발생했습니다.', 'warning');
+      }
+    }
+  }
+
+  async function handleUnlinkFile(docId = currentDocId) {
+    const key = docKey(docId);
+    dirtyLinkedDocIds.delete(key);
+    savedContentByDocId.delete(key);
+    docFolderDirPathById.delete(key);
+    if (storageAvailable && docId) {
+      await GijoStorage.updateDocumentFileLink(docId, null);
+    }
+    if (docId === currentDocId) {
+      currentFileMeta = null;
+      revokePreviewBlobUrls();
+      updatePreview();
+      updateFileTagUI();
+    }
+    if (storageAvailable) {
+      await renderDocumentList();
+    }
+    if (activeFolderHandle) {
+      await syncFolderEntryStates();
+    }
+    showToast('파일 연결을 끊었습니다. 문서는 문서함에 남습니다.', 'info');
+  }
+
+  // Deduplicates Ctrl+S across Electron menu accelerator IPC and renderer keydown.
+  function triggerSaveShortcut() {
+    const now = Date.now();
+    if (now - lastSaveShortcutAt < 250) return;
+    lastSaveShortcutAt = now;
+    handleSaveFile();
+  }
+
+  btnOpenFile.addEventListener('click', () => handleOpenFile());
+  btnSaveFile.addEventListener('click', () => handleSaveFile());
+  btnUnlinkFile.addEventListener('click', () => handleUnlinkFile(currentDocId));
+  btnDismissUnsupported.addEventListener('click', () => {
+    try { localStorage.setItem(UNSUPPORTED_NOTICE_KEY, '1'); } catch (_) { /* ignore */ }
+    fileUnsupportedNotice.hidden = true;
+  });
+
+  // PWA File Handling API: open .md files double-clicked in the OS when installed.
+  if ('launchQueue' in window && window.launchQueue && typeof window.launchQueue.setConsumer === 'function') {
+    window.launchQueue.setConsumer(async (launchParams) => {
+      if (!launchParams || !Array.isArray(launchParams.files) || !launchParams.files.length) return;
+      await initReady;
+      await openLinkedHandles(launchParams.files);
+    });
+  }
+
+  // --- 9d. Workspace Folder, Relative Preview Images & Library-to-Folder Export ---
+  function revokePreviewBlobUrls() {
+    previewImageGen++;
+    for (const url of previewBlobUrls.values()) {
+      try { URL.revokeObjectURL(url); } catch (_) { /* ignore */ }
+    }
+    previewBlobUrls.clear();
+  }
+
+  async function resolveDocDirPathInActiveFolder(fileHandle) {
+    if (!activeFolderHandle || !fileHandle || !window.GijoFiles) return null;
+    for (const entry of activeFolderEntries) {
+      if (entry.name === fileHandle.name && await GijoFiles.sameEntry(entry.handle, fileHandle)) {
+        return entry.dirPath;
+      }
+    }
+    if (typeof activeFolderHandle.resolve === 'function') {
+      try {
+        const parts = await activeFolderHandle.resolve(fileHandle);
+        if (Array.isArray(parts) && parts.length >= 1) {
+          return parts.slice(0, -1).join('/');
+        }
+      } catch (_) { /* ignore */ }
+    }
+    return null;
+  }
+
+  function resolvePreviewRelativeImages() {
+    if (!activeFolderHandle || !window.GijoFiles) return;
+    if (!currentFileMeta || !currentFileMeta.fileHandle) return;
+    const key = docKey(currentDocId);
+    if (!docFolderDirPathById.has(key)) return;
+
+    const baseDirPath = docFolderDirPathById.get(key) || '';
+    const imgs = Array.from(preview.querySelectorAll('img'));
+    if (!imgs.length) return;
+
+    const gen = ++previewImageGen;
+    const pending = [];
+
+    for (const img of imgs) {
+      const rawSrc = (img.getAttribute('src') || '').trim();
+      if (!rawSrc || /^(https?:|data:|blob:|mailto:|javascript:|\/\/|#)/i.test(rawSrc)) continue;
+
+      const normalized = GijoFiles.normalizeRelPath(baseDirPath, rawSrc);
+      if (!normalized) continue;
+
+      if (previewBlobUrls.has(normalized)) {
+        img.src = previewBlobUrls.get(normalized);
+        continue;
+      }
+      pending.push({ img, rawSrc, normalized });
+    }
+
+    if (!pending.length) return;
+
+    const dirHandle = activeFolderHandle;
+    (async () => {
+      for (const { img, rawSrc, normalized } of pending) {
+        if (gen !== previewImageGen || activeFolderHandle !== dirHandle) return;
+        if (previewBlobUrls.has(normalized)) {
+          img.src = previewBlobUrls.get(normalized);
+          continue;
+        }
+        try {
+          const handle = await GijoFiles.resolveRelative(dirHandle, baseDirPath, rawSrc);
+          if (gen !== previewImageGen || activeFolderHandle !== dirHandle) return;
+          if (!handle) continue;
+          const file = await handle.getFile();
+          if (gen !== previewImageGen || activeFolderHandle !== dirHandle) return;
+          let url = previewBlobUrls.get(normalized);
+          if (!url) {
+            url = URL.createObjectURL(file);
+            previewBlobUrls.set(normalized, url);
+          }
+          img.src = url;
+        } catch (_) {
+          // Missing or unreadable image — leave original img element untouched.
+        }
+      }
+    })();
+  }
+
+  function setSidebarTab(tab) {
+    const folderSupported = !!(window.GijoFiles && GijoFiles.isFolderSupported());
+    activeSidebarTab = (tab === 'folder' && folderSupported) ? 'folder' : 'library';
+
+    const isFolder = activeSidebarTab === 'folder';
+    tabLibrary.classList.toggle('active', !isFolder);
+    tabLibrary.setAttribute('aria-selected', String(!isFolder));
+    tabFolder.classList.toggle('active', isFolder);
+    tabFolder.setAttribute('aria-selected', String(isFolder));
+
+    sidebarLibraryPane.hidden = isFolder;
+    sidebarFolderPane.hidden = !isFolder;
+  }
+
+  function updateFolderFeatureUI() {
+    const folderSupported = !!(window.GijoFiles && GijoFiles.isFolderSupported());
+
+    btnOpenFolder.hidden = !folderSupported;
+    btnExportFolder.hidden = !folderSupported;
+    sidebarTabs.hidden = !folderSupported;
+    sidebarLibraryLabel.hidden = folderSupported;
+    folderUnsupportedHint.hidden = folderSupported;
+
+    if (!folderSupported) {
+      btnReopenFolder.hidden = true;
+      btnFolderEmptyReopen.hidden = true;
+      setSidebarTab('library');
+      return;
+    }
+
+    const canReopen = !activeFolderHandle && !!savedFolderHandle;
+    const reopenText = savedFolderHandle ? `지난 폴더 다시 열기: ${savedFolderHandle.name}` : '지난 폴더 다시 열기';
+    btnReopenFolder.hidden = !canReopen;
+    reopenFolderLabel.textContent = reopenText;
+    btnReopenFolder.title = reopenText;
+
+    btnFolderEmptyReopen.hidden = !canReopen;
+    folderEmptyReopenLabel.textContent = reopenText;
+    btnFolderEmptyReopen.title = reopenText;
+
+    folderEmptyState.hidden = !!activeFolderHandle;
+    folderActiveView.hidden = !activeFolderHandle;
+    if (activeFolderHandle) {
+      folderRootName.textContent = activeFolderHandle.name || '폴더';
+      folderRootBtn.classList.toggle('selected', selectedFolderDirPath === '');
+      folderLimitNotice.hidden = !activeFolderTruncated;
+    }
+  }
+
+  function formatFileDate(ts) {
+    if (!ts) return '';
+    return new Date(ts).toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+  }
+
+  async function updateSavedEntryTimestamp(fileHandle) {
+    if (!activeFolderHandle || !fileHandle || !window.GijoFiles) return;
+    for (const entry of activeFolderEntries) {
+      if (entry.name === fileHandle.name && await GijoFiles.sameEntry(entry.handle, fileHandle)) {
+        try {
+          const file = await fileHandle.getFile();
+          if (file && typeof file.lastModified === 'number') entry.lastModified = file.lastModified;
+        } catch (_) { /* ignore */ }
+        break;
+      }
+    }
+  }
+
+  async function syncFolderEntryStates() {
+    folderStateByPath.clear();
+    if (!activeFolderHandle || !window.GijoFiles) return;
+
+    const linkedDocs = [];
+    if (storageAvailable) {
+      const docs = await GijoStorage.getAllDocuments();
+      for (const doc of docs) {
+        if (doc.fileHandle) {
+          linkedDocs.push({
+            id: doc.id,
+            handle: doc.fileHandle,
+            name: doc.fileHandle.name || doc.fileName || '',
+            isDirty: !!(doc.fileDirty || dirtyLinkedDocIds.has(doc.id)),
+          });
+        }
+      }
+    } else if (currentFileMeta && currentFileMeta.fileHandle) {
+      linkedDocs.push({
+        id: '__legacy__',
+        handle: currentFileMeta.fileHandle,
+        name: currentFileMeta.fileHandle.name || currentFileMeta.fileName || '',
+        isDirty: !!(currentFileMeta.fileDirty || dirtyLinkedDocIds.has('__legacy__')),
+      });
+    }
+
+    const docsByName = new Map();
+    for (const d of linkedDocs) {
+      if (!docsByName.has(d.name)) docsByName.set(d.name, []);
+      docsByName.get(d.name).push(d);
+    }
+
+    const activeKey = docKey(currentDocId);
+    for (const entry of activeFolderEntries) {
+      const candidates = docsByName.get(entry.name);
+      if (!candidates) continue;
+      for (const doc of candidates) {
+        if (await GijoFiles.sameEntry(doc.handle, entry.handle)) {
+          docFolderDirPathById.set(doc.id, entry.dirPath);
+          folderStateByPath.set(entry.path, {
+            docId: doc.id,
+            isActive: doc.id === activeKey,
+            isDirty: doc.isDirty,
+          });
+          break;
+        }
+      }
+    }
+
+    renderFolderTree();
+  }
+
+  function buildFolderTreeModel(entries, query) {
+    const root = { name: '', dirPath: '', dirs: new Map(), files: [] };
+    const needle = (query || '').trim().toLowerCase();
+
+    for (const entry of entries) {
+      if (needle && !entry.name.toLowerCase().includes(needle)) continue;
+      let node = root;
+      if (entry.dirPath) {
+        const parts = entry.dirPath.split('/');
+        let acc = '';
+        for (const part of parts) {
+          acc = acc ? `${acc}/${part}` : part;
+          if (!node.dirs.has(part)) {
+            node.dirs.set(part, { name: part, dirPath: acc, dirs: new Map(), files: [] });
+          }
+          node = node.dirs.get(part);
+        }
+      }
+      node.files.push(entry);
+    }
+    return root;
+  }
+
+  function renderFolderTree() {
+    if (!activeFolderHandle) {
+      folderTreeEl.innerHTML = '';
+      return;
+    }
+
+    const query = (folderSearchInput.value || '').trim();
+    const root = buildFolderTreeModel(activeFolderEntries, query);
+    const filteredCount = query
+      ? activeFolderEntries.filter((e) => e.name.toLowerCase().includes(query.toLowerCase())).length
+      : activeFolderEntries.length;
+
+    folderFileCount.textContent = query
+      ? `${filteredCount}/${activeFolderEntries.length}개`
+      : `${activeFolderEntries.length}개${activeFolderTruncated ? '+' : ''}`;
+    folderRootBtn.classList.toggle('selected', selectedFolderDirPath === '');
+    folderLimitNotice.hidden = !activeFolderTruncated;
+
+    folderTreeEl.innerHTML = '';
+    if (filteredCount === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'document-list-empty';
+      empty.textContent = query ? '일치하는 파일이 없습니다.' : '이 폴더에 .md 파일이 없습니다.';
+      folderTreeEl.appendChild(empty);
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+
+    function renderNode(node, depth) {
+      const sortedDirs = Array.from(node.dirs.values())
+        .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+      const sortedFiles = node.files.slice()
+        .sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+
+      for (const dir of sortedDirs) {
+        const isCollapsed = !query && collapsedFolderDirs.has(dir.dirPath);
+        const dirBtn = document.createElement('button');
+        dirBtn.type = 'button';
+        dirBtn.className = 'folder-dir-row' + (selectedFolderDirPath === dir.dirPath ? ' selected' : '');
+        dirBtn.style.paddingLeft = `${8 + depth * 14}px`;
+        dirBtn.setAttribute('aria-expanded', String(!isCollapsed));
+        dirBtn.title = `${dir.dirPath} (클릭: 펼치기/접기 및 새 파일 위치 선택)`;
+
+        const chev = document.createElement('i');
+        chev.className = `fa-solid ${isCollapsed ? 'fa-chevron-right' : 'fa-chevron-down'} folder-dir-chevron`;
+        const icon = document.createElement('i');
+        icon.className = `fa-solid ${isCollapsed ? 'fa-folder' : 'fa-folder-open'} folder-dir-icon`;
+        const label = document.createElement('span');
+        label.className = 'folder-dir-name';
+        label.textContent = dir.name;
+
+        dirBtn.appendChild(chev);
+        dirBtn.appendChild(icon);
+        dirBtn.appendChild(label);
+        dirBtn.addEventListener('click', () => {
+          selectedFolderDirPath = dir.dirPath;
+          if (collapsedFolderDirs.has(dir.dirPath)) collapsedFolderDirs.delete(dir.dirPath);
+          else collapsedFolderDirs.add(dir.dirPath);
+          renderFolderTree();
+        });
+        frag.appendChild(dirBtn);
+
+        if (!isCollapsed) {
+          renderNode(dir, depth + 1);
+        }
+      }
+
+      for (const entry of sortedFiles) {
+        const state = folderStateByPath.get(entry.path);
+        const fileBtn = document.createElement('button');
+        fileBtn.type = 'button';
+        fileBtn.className = 'folder-file-row' + (state && state.isActive ? ' active' : '');
+        fileBtn.style.paddingLeft = `${10 + depth * 14}px`;
+        fileBtn.dataset.path = entry.path;
+        fileBtn.title = entry.path;
+
+        const icon = document.createElement('i');
+        icon.className = 'fa-regular fa-file-lines folder-file-icon';
+
+        const info = document.createElement('div');
+        info.className = 'folder-file-info';
+
+        const titleRow = document.createElement('div');
+        titleRow.className = 'folder-file-title-row';
+
+        const nameEl = document.createElement('span');
+        nameEl.className = 'folder-file-name';
+        renderHighlighted(nameEl, entry.name, query);
+        titleRow.appendChild(nameEl);
+
+        if (state && state.isDirty) {
+          const dirtyDot = document.createElement('span');
+          dirtyDot.className = 'folder-file-dirty';
+          dirtyDot.title = '저장되지 않은 변경 있음';
+          dirtyDot.textContent = '●';
+          titleRow.appendChild(dirtyDot);
+        }
+
+        const metaEl = document.createElement('span');
+        metaEl.className = 'folder-file-meta';
+        metaEl.textContent = formatFileDate(entry.lastModified);
+
+        info.appendChild(titleRow);
+        if (metaEl.textContent) info.appendChild(metaEl);
+
+        fileBtn.appendChild(icon);
+        fileBtn.appendChild(info);
+        fileBtn.addEventListener('click', () => handleOpenFolderFile(entry));
+        frag.appendChild(fileBtn);
+      }
+    }
+
+    renderNode(root, 0);
+    folderTreeEl.appendChild(frag);
+  }
+
+  async function refreshActiveFolderSilently() {
+    if (!activeFolderHandle || !window.GijoFiles) return;
+    const entries = await GijoFiles.listMarkdown(activeFolderHandle, { maxDepth: 3, limit: 500 });
+    activeFolderEntries = entries;
+    activeFolderTruncated = !!entries.truncated;
+    await syncFolderEntryStates();
+    updateFolderFeatureUI();
+  }
+
+  async function openFolderWithHandle(dirHandle, { requestPerm = false } = {}) {
+    if (!dirHandle || !window.GijoFiles) return;
+    try {
+      if (requestPerm) {
+        const granted = await GijoFiles.ensurePermission(dirHandle, 'readwrite');
+        if (!granted) {
+          showToast('폴더 접근 권한이 허용되지 않아 열지 못했습니다.', 'warning');
+          return;
+        }
+      }
+
+      const entries = await GijoFiles.listMarkdown(dirHandle, { maxDepth: 3, limit: 500 });
+      revokePreviewBlobUrls();
+      docFolderDirPathById.clear();
+      collapsedFolderDirs.clear();
+      selectedFolderDirPath = '';
+      folderSearchInput.value = '';
+
+      activeFolderHandle = dirHandle;
+      activeFolderEntries = entries;
+      activeFolderTruncated = !!entries.truncated;
+      savedFolderHandle = dirHandle;
+
+      if (storageAvailable && typeof GijoStorage.saveFolderHandle === 'function') {
+        try { await GijoStorage.saveFolderHandle(dirHandle); } catch (_) { /* ignore */ }
+      }
+
+      setSidebarTab('folder');
+      updateFolderFeatureUI();
+      await syncFolderEntryStates();
+
+      if (currentFileMeta && currentFileMeta.fileHandle && !docFolderDirPathById.has(docKey(currentDocId))) {
+        const resolvedDir = await resolveDocDirPathInActiveFolder(currentFileMeta.fileHandle);
+        if (resolvedDir !== null) docFolderDirPathById.set(docKey(currentDocId), resolvedDir);
+      }
+      updatePreview();
+
+      if (activeFolderTruncated) {
+        showToast('파일이 500개를 넘어 처음 500개만 표시합니다.', 'warning');
+      } else {
+        showToast(`폴더를 열었습니다: ${dirHandle.name} (${entries.length}개 파일)`, 'success');
+      }
+    } catch (err) {
+      console.error('Open folder failed', err);
+      if (err && err.code === 'PERMISSION_DENIED') {
+        showToast('폴더 접근 권한이 허용되지 않았습니다.', 'warning');
+      } else if (err && err.name === 'NotFoundError') {
+        savedFolderHandle = null;
+        if (storageAvailable && typeof GijoStorage.clearSavedFolderHandle === 'function') {
+          await GijoStorage.clearSavedFolderHandle();
+        }
+        updateFolderFeatureUI();
+        showToast('지난 폴더를 찾을 수 없습니다. 폴더를 다시 골라 주세요.', 'warning');
+      } else {
+        showToast('폴더를 여는 중 오류가 발생했습니다.', 'warning');
+      }
+    }
+  }
+
+  async function handleOpenFolder() {
+    if (!window.GijoFiles || !GijoFiles.isFolderSupported()) return;
+    try {
+      const dirHandle = await GijoFiles.openFolder();
+      if (!dirHandle) return;
+      await openFolderWithHandle(dirHandle);
+    } catch (err) {
+      console.error('Folder picker failed', err);
+      showToast('폴더를 여는 중 오류가 발생했습니다.', 'warning');
+    }
+  }
+
+  async function handleReopenFolder() {
+    if (!savedFolderHandle || !window.GijoFiles || !GijoFiles.isFolderSupported()) return;
+    await openFolderWithHandle(savedFolderHandle, { requestPerm: true });
+  }
+
+  async function handleRefreshFolder() {
+    if (!activeFolderHandle || !window.GijoFiles) return;
+    try {
+      revokePreviewBlobUrls();
+      await refreshActiveFolderSilently();
+      updatePreview();
+      if (activeFolderTruncated) {
+        showToast('새로 고침 완료 — 파일이 500개를 넘어 처음 500개만 표시합니다.', 'warning');
+      } else {
+        showToast(`폴더 목록을 새로 고쳤습니다. (${activeFolderEntries.length}개 파일)`, 'info');
+      }
+    } catch (err) {
+      console.error('Refresh folder failed', err);
+      showToast('폴더를 새로 고치는 중 오류가 발생했습니다.', 'warning');
+    }
+  }
+
+  function handleCloseFolder() {
+    if (!activeFolderHandle) return;
+    revokePreviewBlobUrls();
+    activeFolderHandle = null;
+    activeFolderEntries = [];
+    activeFolderTruncated = false;
+    selectedFolderDirPath = '';
+    collapsedFolderDirs.clear();
+    folderStateByPath.clear();
+    docFolderDirPathById.clear();
+    folderSearchInput.value = '';
+    folderTreeEl.innerHTML = '';
+    updateFolderFeatureUI();
+    updatePreview();
+    showToast('폴더를 닫았습니다.', 'info');
+  }
+
+  async function handleOpenFolderFile(entry) {
+    if (!entry || !entry.handle) return;
+    selectedFolderDirPath = entry.dirPath || '';
+    await openLinkedHandles([entry.handle], {
+      dirPath: entry.dirPath || '',
+      silentExistingToast: true,
+    });
+    if (isMobileLayout()) setSidebarCollapsed(true);
+  }
+
+  function openNewFileModal() {
+    if (!activeFolderHandle) {
+      showToast('먼저 폴더를 열어 주세요.', 'warning');
+      return;
+    }
+    const loc = selectedFolderDirPath
+      ? `${activeFolderHandle.name}/${selectedFolderDirPath}`
+      : `${activeFolderHandle.name} (루트)`;
+    newFileLocation.textContent = `저장 위치: ${loc}`;
+    newFileNameInput.value = '';
+    newFileError.textContent = '';
+    newFileError.hidden = true;
+    newFileModal.classList.add('open');
+    setTimeout(() => newFileNameInput.focus(), 0);
+  }
+
+  function closeNewFileModal() {
+    newFileModal.classList.remove('open');
+  }
+
+  function showNewFileError(msg) {
+    newFileError.textContent = msg;
+    newFileError.hidden = false;
+  }
+
+  async function handleCreateFolderFile(e) {
+    if (e) e.preventDefault();
+    if (!activeFolderHandle || !window.GijoFiles) return;
+
+    const rawName = newFileNameInput.value;
+    const parsed = GijoFiles.normalizeNewFileName(rawName);
+    if (!parsed.ok) {
+      if (parsed.reason === 'EMPTY') {
+        showNewFileError('파일 이름을 입력하세요.');
+      } else if (parsed.reason === 'INVALID_CHARS') {
+        showNewFileError('파일 이름에 \\ / : * ? " < > | 글자는 쓸 수 없습니다.');
+      } else {
+        showNewFileError('올바른 파일 이름을 입력하세요.');
+      }
+      newFileNameInput.focus();
+      return;
+    }
+
+    try {
+      const targetDir = await GijoFiles.getSubdirectoryHandle(activeFolderHandle, selectedFolderDirPath);
+      if (!targetDir) {
+        showNewFileError('선택한 폴더를 찾을 수 없습니다. 폴더를 새로 고쳐 주세요.');
+        return;
+      }
+
+      const fileHandle = await GijoFiles.createFile(targetDir, rawName);
+      closeNewFileModal();
+
+      // Expand ancestor directories so the newly created file is visible in the tree.
+      if (selectedFolderDirPath) {
+        const parts = selectedFolderDirPath.split('/');
+        let acc = '';
+        for (const p of parts) {
+          acc = acc ? `${acc}/${p}` : p;
+          collapsedFolderDirs.delete(acc);
+        }
+      }
+
+      await refreshActiveFolderSilently();
+      await openLinkedHandles([fileHandle], {
+        dirPath: selectedFolderDirPath,
+        silentExistingToast: true,
+      });
+      showToast(`새 파일을 만들었습니다: ${fileHandle.name}`, 'success');
+    } catch (err) {
+      if (err && err.code === 'ALREADY_EXISTS') {
+        showNewFileError('같은 이름의 파일이 있습니다.');
+        showToast('같은 이름의 파일이 있습니다', 'warning');
+      } else if (err && err.code === 'PERMISSION_DENIED') {
+        showNewFileError('폴더 쓰기 권한이 허용되지 않았습니다.');
+      } else {
+        console.error('Create file failed', err);
+        showNewFileError('파일을 만드는 중 오류가 발생했습니다.');
+      }
+    }
+  }
+
+  function sanitizeExportBaseName(title) {
+    const cleaned = String(title || '')
+      .trim()
+      .replace(/\.(md|markdown)$/i, '')
+      .replace(/[\\/:*?"<>|]/g, '_')
+      .replace(/^\.+$/, '')
+      .trim();
+    return cleaned || '제목 없는 문서';
+  }
+
+  async function pickUniqueExportFileName(dirHandle, usedLowerNames, rawTitle) {
+    const base = sanitizeExportBaseName(rawTitle);
+    let idx = 1;
+    for (;;) {
+      const candidate = idx === 1 ? `${base}.md` : `${base} (${idx}).md`;
+      const lower = candidate.toLowerCase();
+      if (!usedLowerNames.has(lower)) {
+        let existsOnDisk = false;
+        try {
+          await dirHandle.getFileHandle(candidate, { create: false });
+          existsOnDisk = true;
+        } catch (err) {
+          if (!err || err.name !== 'NotFoundError') throw err;
+        }
+        if (!existsOnDisk) {
+          usedLowerNames.add(lower);
+          return candidate;
+        }
+      }
+      idx++;
+    }
+  }
+
+  async function handleExportLibraryToFolder() {
+    if (!requireLibrary()) return;
+    if (!window.GijoFiles || !GijoFiles.isFolderSupported()) return;
+
+    await flushCurrentDocument();
+    const docs = await GijoStorage.getAllDocuments();
+    const unlinkedDocs = docs.filter((doc) => !doc.fileHandle);
+    if (!unlinkedDocs.length) {
+      showToast('내보낼 문서함 문서가 없습니다. (파일과 연결되지 않은 문서만 내보냅니다)', 'info');
+      return;
+    }
+
+    let dirHandle;
+    try {
+      dirHandle = await GijoFiles.openFolder();
+    } catch (err) {
+      console.error('Export folder picker failed', err);
+      showToast('폴더를 고르는 중 오류가 발생했습니다.', 'warning');
+      return;
+    }
+    if (!dirHandle) return;
+
+    const granted = await GijoFiles.ensurePermission(dirHandle, 'readwrite');
+    if (!granted) {
+      showToast('폴더 쓰기 권한이 허용되지 않아 내보내지 못했습니다.', 'warning');
+      return;
+    }
+
+    const usedLowerNames = new Set();
+    let written = 0;
+    let failed = 0;
+    for (const doc of unlinkedDocs) {
+      try {
+        const fileName = await pickUniqueExportFileName(dirHandle, usedLowerNames, doc.title);
+        const fileHandle = await dirHandle.getFileHandle(fileName, { create: true });
+        await GijoFiles.writeHandle(fileHandle, doc.content || '', { lineEnding: 'LF', hadBom: false });
+        written++;
+      } catch (err) {
+        console.error('Export doc to folder failed', doc.title, err);
+        failed++;
+      }
+    }
+
+    if (activeFolderHandle && await GijoFiles.sameEntry(activeFolderHandle, dirHandle)) {
+      await refreshActiveFolderSilently();
+    }
+
+    if (written > 0 && failed === 0) {
+      showToast(`문서 ${written}개를 '${dirHandle.name}' 폴더로 내보냈습니다.`, 'success');
+    } else if (written > 0) {
+      showToast(`문서 ${written}개를 내보냈습니다 (${failed}개 실패).`, 'warning');
+    } else {
+      showToast('문서를 폴더로 내보내지 못했습니다.', 'warning');
+    }
+  }
+
+  tabLibrary.addEventListener('click', () => setSidebarTab('library'));
+  tabFolder.addEventListener('click', () => setSidebarTab('folder'));
+  btnOpenFolder.addEventListener('click', () => handleOpenFolder());
+  btnFolderEmptyOpen.addEventListener('click', () => handleOpenFolder());
+  btnReopenFolder.addEventListener('click', () => handleReopenFolder());
+  btnFolderEmptyReopen.addEventListener('click', () => handleReopenFolder());
+  btnFolderNewFile.addEventListener('click', () => openNewFileModal());
+  btnFolderRefresh.addEventListener('click', () => handleRefreshFolder());
+  btnFolderClose.addEventListener('click', () => handleCloseFolder());
+  btnExportFolder.addEventListener('click', () => handleExportLibraryToFolder());
+  folderRootBtn.addEventListener('click', () => {
+    selectedFolderDirPath = '';
+    renderFolderTree();
+  });
+
+  let folderSearchTimer = null;
+  folderSearchInput.addEventListener('input', () => {
+    clearTimeout(folderSearchTimer);
+    folderSearchTimer = setTimeout(renderFolderTree, 120);
+  });
+  folderSearchInput.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !folderSearchInput.value) return;
+    e.stopPropagation();
+    folderSearchInput.value = '';
+    renderFolderTree();
+  });
+
+  newFileForm.addEventListener('submit', handleCreateFolderFile);
+  btnNewFileClose.addEventListener('click', closeNewFileModal);
+  btnNewFileCancel.addEventListener('click', closeNewFileModal);
+  newFileModal.addEventListener('click', (e) => {
+    if (e.target === newFileModal) closeNewFileModal();
+  });
+  newFileNameInput.addEventListener('input', () => {
+    if (!newFileError.hidden) {
+      newFileError.hidden = true;
+      newFileError.textContent = '';
+    }
+  });
 
   // --- 10. View Toggles ---
   btnToggleView.addEventListener('click', () => {
@@ -1057,7 +2893,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.gijoDesktop.onMenuCommand((command) => {
       switch (command) {
         case 'new-doc': createNewDocument(); break;
-        case 'export-md': handleExport('md'); break;
+        // main.js maps CmdOrCtrl+S to 'export-md'; leave the Electron menu intact
+        // and route it through triggerSaveShortcut() so Ctrl+S runs once here.
+        case 'export-md': triggerSaveShortcut(); break;
         case 'export-html': handleExport('html'); break;
         case 'export-pdf': handleExport('pdf'); break;
         case 'export-docx': handleExport('docx'); break;
@@ -1085,27 +2923,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- 15. Init ---
   async function initApp() {
-    loadTheme();
-    loadSidebarState();
-    setupMenuCommandListener();
+    try {
+      loadTheme();
+      loadSidebarState();
+      setMobileView('write');
+      setupMenuCommandListener();
 
-    await GijoStorage.runMigrationIfNeeded();
-    storageAvailable = GijoStorage.isAvailable();
+      await GijoStorage.runMigrationIfNeeded();
+      storageAvailable = GijoStorage.isAvailable();
 
-    if (storageAvailable) {
-      await applyRecoveryIfAny();
-      let docs = await GijoStorage.getAllDocuments();
-      if (docs.length === 0) {
-        docs = [await GijoStorage.createDocument({ title: DOC_TEMPLATES.bug.title, content: DOC_TEMPLATES.bug.content })];
+      if (storageAvailable) {
+        await applyRecoveryIfAny();
+        let docs = await GijoStorage.getAllDocuments();
+        if (docs.length === 0) {
+          docs = [await GijoStorage.createDocument({ title: DOC_TEMPLATES.bug.title, content: DOC_TEMPLATES.bug.content })];
+        }
+        docs.forEach((doc) => {
+          if (doc.fileHandle && doc.fileDirty) dirtyLinkedDocIds.add(doc.id);
+        });
+        currentDocId = docs[0].id;
+        currentFileMeta = extractFileMeta(docs[0]);
+        docTitleInput.value = docs[0].title;
+        editor.value = docs[0].content;
+        if (window.GijoFiles && GijoFiles.isFolderSupported() && typeof GijoStorage.getSavedFolderHandle === 'function') {
+          savedFolderHandle = await GijoStorage.getSavedFolderHandle();
+        }
+        updatePreview();
+        updateFileTagUI();
+        updateFolderFeatureUI();
+        renderDocumentList();
+      } else {
+        loadLegacyFallback();
+        updateFileTagUI();
+        updateFolderFeatureUI();
+        showToast('이 브라우저에서는 문서함 기능을 사용할 수 없어 단일 문서 모드로 동작합니다.', 'warning');
       }
-      currentDocId = docs[0].id;
-      docTitleInput.value = docs[0].title;
-      editor.value = docs[0].content;
-      updatePreview();
-      renderDocumentList();
-    } else {
-      loadLegacyFallback();
-      showToast('이 브라우저에서는 문서함 기능을 사용할 수 없어 단일 문서 모드로 동작합니다.', 'warning');
+    } finally {
+      resolveInitReady();
     }
   }
 

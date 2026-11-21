@@ -8,9 +8,11 @@
 // for migration and then left alone (never deleted) as a safety net.
 const GijoStorage = (() => {
   const DB_NAME = 'gijo-md-studio';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;
   const STORE_DOCS = 'documents';
   const STORE_HISTORY = 'history';
+  const STORE_SETTINGS = 'settings';
+  const FOLDER_SETTING_KEY = 'lastFolder';
   const HISTORY_LIMIT = 20;
 
   const LEGACY_KEY_CONTENT = 'gijo_md_studio_content';
@@ -63,6 +65,9 @@ const GijoStorage = (() => {
           const historyStore = db.createObjectStore(STORE_HISTORY, { keyPath: 'id', autoIncrement: true });
           historyStore.createIndex('by_docId', 'docId', { unique: false });
         }
+        if (!db.objectStoreNames.contains(STORE_SETTINGS)) {
+          db.createObjectStore(STORE_SETTINGS, { keyPath: 'key' });
+        }
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
@@ -100,26 +105,36 @@ const GijoStorage = (() => {
     return doc;
   }
 
-  function makeDocument({ title, content }) {
+  function makeDocument({ title, content, pinned, fileHandle, fileName, lineEnding, hadBom, encoding, fileDirty } = {}) {
     const now = Date.now();
-    return {
+    const doc = {
       id: generateId(),
       title: title || '제목 없는 문서',
       content: content || '',
+      pinned: !!pinned,
       createdAt: now,
       updatedAt: now,
       sizeBytes: byteLength(content || ''),
       imageCount: countImages(content || ''),
     };
+    if (fileHandle) {
+      doc.fileHandle = fileHandle;
+      doc.fileName = fileName || fileHandle.name || '';
+      doc.lineEnding = lineEnding || 'LF';
+      doc.hadBom = !!hadBom;
+      doc.encoding = encoding || 'utf-8';
+      doc.fileDirty = !!fileDirty;
+    }
+    return doc;
   }
 
-  async function createDocument({ title, content } = {}) {
-    const doc = makeDocument({ title, content });
+  async function createDocument(options = {}) {
+    const doc = makeDocument(options);
     await saveDocument(doc);
     return doc;
   }
 
-  async function updateDocumentContent(id, { title, content }) {
+  async function updateDocumentContent(id, { title, content, fileDirty }) {
     const doc = await getDocument(id);
     if (!doc) throw new Error(`Document not found: ${id}`);
     doc.title = title;
@@ -127,6 +142,48 @@ const GijoStorage = (() => {
     doc.updatedAt = Date.now();
     doc.sizeBytes = byteLength(content || '');
     doc.imageCount = countImages(content || '');
+    if (typeof fileDirty === 'boolean' && doc.fileHandle) {
+      doc.fileDirty = fileDirty;
+    }
+    await saveDocument(doc);
+    return doc;
+  }
+
+  async function renameDocument(id, title) {
+    const doc = await getDocument(id);
+    if (!doc) throw new Error(`Document not found: ${id}`);
+    doc.title = title;
+    doc.updatedAt = Date.now();
+    await saveDocument(doc);
+    return doc;
+  }
+
+  async function setDocumentPinned(id, pinned) {
+    const doc = await getDocument(id);
+    if (!doc) throw new Error(`Document not found: ${id}`);
+    doc.pinned = !!pinned;
+    await saveDocument(doc);
+    return doc;
+  }
+
+  async function updateDocumentFileLink(id, linkMeta) {
+    const doc = await getDocument(id);
+    if (!doc) throw new Error(`Document not found: ${id}`);
+    if (!linkMeta || !linkMeta.fileHandle) {
+      delete doc.fileHandle;
+      delete doc.fileName;
+      delete doc.lineEnding;
+      delete doc.hadBom;
+      delete doc.encoding;
+      delete doc.fileDirty;
+    } else {
+      doc.fileHandle = linkMeta.fileHandle;
+      doc.fileName = linkMeta.fileName || linkMeta.fileHandle.name || '';
+      doc.lineEnding = linkMeta.lineEnding || 'LF';
+      doc.hadBom = !!linkMeta.hadBom;
+      doc.encoding = linkMeta.encoding || 'utf-8';
+      doc.fileDirty = !!linkMeta.fileDirty;
+    }
     await saveDocument(doc);
     return doc;
   }
@@ -147,7 +204,18 @@ const GijoStorage = (() => {
   const BACKUP_VERSION = 1;
 
   async function exportBackup() {
-    const documents = await getAllDocuments();
+    // Strip fileHandle and file-link metadata — handles are not JSON-serializable,
+    // and restored documents always come back as unlinked library documents.
+    const documents = (await getAllDocuments()).map((doc) => ({
+      id: doc.id,
+      title: doc.title,
+      content: doc.content,
+      pinned: !!doc.pinned,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
+      sizeBytes: doc.sizeBytes,
+      imageCount: doc.imageCount,
+    }));
     return {
       format: BACKUP_FORMAT,
       version: BACKUP_VERSION,
@@ -178,6 +246,7 @@ const GijoStorage = (() => {
         id: raw.id || generateId(),
         title: typeof raw.title === 'string' && raw.title ? raw.title : '제목 없는 문서',
         content: raw.content,
+        pinned: !!raw.pinned,
         createdAt: Number(raw.createdAt) || now,
         updatedAt: Number(raw.updatedAt) || now,
         sizeBytes: byteLength(raw.content),
@@ -253,6 +322,38 @@ const GijoStorage = (() => {
     }
   }
 
+  async function saveFolderHandle(handle) {
+    if (!handle) return;
+    await runTx(STORE_SETTINGS, 'readwrite', (tx) => {
+      tx.objectStore(STORE_SETTINGS).put({
+        key: FOLDER_SETTING_KEY,
+        handle,
+        name: handle.name || '',
+        savedAt: Date.now(),
+      });
+    });
+  }
+
+  async function getSavedFolderHandle() {
+    try {
+      const db = await openDb();
+      if (!db.objectStoreNames.contains(STORE_SETTINGS)) return null;
+      const tx = db.transaction(STORE_SETTINGS, 'readonly');
+      const record = await promisifyRequest(tx.objectStore(STORE_SETTINGS).get(FOLDER_SETTING_KEY));
+      return (record && record.handle) ? record.handle : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function clearSavedFolderHandle() {
+    try {
+      await runTx(STORE_SETTINGS, 'readwrite', (tx) => {
+        tx.objectStore(STORE_SETTINGS).delete(FOLDER_SETTING_KEY);
+      });
+    } catch (_) { /* ignore */ }
+  }
+
   return {
     isAvailable: () => available,
     runMigrationIfNeeded,
@@ -260,6 +361,9 @@ const GijoStorage = (() => {
     getDocument,
     createDocument,
     updateDocumentContent,
+    renameDocument,
+    setDocumentPinned,
+    updateDocumentFileLink,
     duplicateDocument,
     exportBackup,
     importBackup,
@@ -267,6 +371,9 @@ const GijoStorage = (() => {
     getHistory,
     createSnapshot,
     restoreSnapshot,
+    saveFolderHandle,
+    getSavedFolderHandle,
+    clearSavedFolderHandle,
   };
 })();
 
