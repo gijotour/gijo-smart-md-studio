@@ -75,6 +75,9 @@ const GijoStorage = (() => {
     }
     dbPromise = new Promise((resolve, reject) => {
       const req = indexedDB.open(DB_NAME, DB_VERSION);
+      const BLOCKED_MESSAGE = '다른 탭이나 창에 MD 스튜디오가 예전 판으로 열려 있어 문서함을 열지 못하고 있습니다. 그 탭을 닫거나 새로 고치면 바로 열립니다. 문서는 그대로 있습니다.';
+      // 다른 탭의 요청 뒤에 줄을 서 있을 때는 blocked 신호가 오지 않는다. 그래서 4초가 지나도 안 열리면 같은 안내를 띄운다.
+      const slowTimer = setTimeout(() => showStorageNotice(BLOCKED_MESSAGE), 4000);
       req.onupgradeneeded = () => {
         const db = req.result;
         if (!db.objectStoreNames.contains(STORE_DOCS)) {
@@ -91,10 +94,11 @@ const GijoStorage = (() => {
       // 저장소 판(version)을 올리려면 예전 판으로 열려 있는 다른 탭이 닫혀야 한다.
       // 그 탭이 열려 있으면 여기서 기다리게 되므로, 멈춘 것처럼 보이지 않게 까닭을 알린다.
       req.onblocked = () => {
-        showStorageNotice('다른 탭이나 창에 MD 스튜디오가 예전 판으로 열려 있어 문서함을 열지 못하고 있습니다. 그 탭을 닫거나 새로 고치면 바로 열립니다. 문서는 그대로 있습니다.');
+        showStorageNotice(BLOCKED_MESSAGE);
       };
       req.onsuccess = () => {
         const db = req.result;
+        clearTimeout(slowTimer);
         hideStorageNotice();
         // 나중에 다른 탭이 더 새 판으로 열리면 이 탭이 길을 비켜 준다(그 탭이 멈추지 않게).
         db.onversionchange = () => {
@@ -103,7 +107,7 @@ const GijoStorage = (() => {
         };
         resolve(db);
       };
-      req.onerror = () => reject(req.error);
+      req.onerror = () => { clearTimeout(slowTimer); reject(req.error); };
     });
     dbPromise.catch(() => { available = false; });
     return dbPromise;
