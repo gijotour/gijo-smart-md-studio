@@ -47,6 +47,25 @@ const GijoStorage = (() => {
     }));
   }
 
+  // 화면 위쪽에 띄우는 한 줄 알림. 저장소가 열리기 전에도 떠야 해서 여기서 직접 만든다.
+  function showStorageNotice(message) {
+    let bar = document.getElementById('storage-notice');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'storage-notice';
+      bar.setAttribute('role', 'alert');
+      bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:5000;padding:12px 16px;' +
+        'background:#b45309;color:#fff;font-size:14px;font-weight:600;line-height:1.5;text-align:center;';
+      (document.body || document.documentElement).appendChild(bar);
+    }
+    bar.textContent = message;
+  }
+
+  function hideStorageNotice() {
+    const bar = document.getElementById('storage-notice');
+    if (bar) bar.remove();
+  }
+
   function openDb() {
     if (dbPromise) return dbPromise;
     if (!window.indexedDB) {
@@ -69,7 +88,21 @@ const GijoStorage = (() => {
           db.createObjectStore(STORE_SETTINGS, { keyPath: 'key' });
         }
       };
-      req.onsuccess = () => resolve(req.result);
+      // 저장소 판(version)을 올리려면 예전 판으로 열려 있는 다른 탭이 닫혀야 한다.
+      // 그 탭이 열려 있으면 여기서 기다리게 되므로, 멈춘 것처럼 보이지 않게 까닭을 알린다.
+      req.onblocked = () => {
+        showStorageNotice('다른 탭이나 창에 MD 스튜디오가 예전 판으로 열려 있어 문서함을 열지 못하고 있습니다. 그 탭을 닫거나 새로 고치면 바로 열립니다. 문서는 그대로 있습니다.');
+      };
+      req.onsuccess = () => {
+        const db = req.result;
+        hideStorageNotice();
+        // 나중에 다른 탭이 더 새 판으로 열리면 이 탭이 길을 비켜 준다(그 탭이 멈추지 않게).
+        db.onversionchange = () => {
+          db.close();
+          showStorageNotice('MD 스튜디오가 다른 탭에서 새 판으로 열렸습니다. 이 탭을 새로 고쳐 주세요. 문서는 그대로 있습니다.');
+        };
+        resolve(db);
+      };
       req.onerror = () => reject(req.error);
     });
     dbPromise.catch(() => { available = false; });

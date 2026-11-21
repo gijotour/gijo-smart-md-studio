@@ -2,7 +2,7 @@
 // 한 번 열면 인터넷 없이도 다시 열리게 앱 파일을 기기에 담아 둔다.
 // 문서 내용은 여기서 다루지 않는다(문서는 브라우저 저장소에만 있다). 바깥 주소로는 아무것도 보내지 않는다.
 // 파일을 바꿔 배포할 때 VERSION 을 올리면 예전 캐시가 정리된다.
-const VERSION = 'v4';
+const VERSION = 'v5';
 const CACHE = 'mdstudio-web-' + VERSION;
 const ASSETS = [
   "./",
