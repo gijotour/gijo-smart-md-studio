@@ -1,0 +1,16 @@
+{
+  "name": "GIJO Smart MD Studio",
+  "short_name": "MD Studio",
+  "description": "이미지가 들어가는 마크다운(MD) 전용 문서 작성기. 설치 없이 브라우저에서 쓰고, 한 번 열면 오프라인에서도 열립니다.",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

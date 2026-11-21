@@ -1084,3 +1084,14 @@ textarea:focus-visible,
   font-size: 0.8rem;
   color: var(--text-muted);
 }
+
+/* 웹판 전용: 「앱으로 설치」 단추 (js/web.js) */
+.web-install-btn {
+  position: fixed; right: 16px; bottom: 16px; z-index: 900;
+  min-height: 40px; padding: 8px 16px; border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.4); background: #1e293b; color: #f8fafc;
+  font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+.web-install-btn:hover { background: #334155; }
+@media print { .web-install-btn { display: none; } }
