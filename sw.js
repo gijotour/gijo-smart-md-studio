@@ -2,7 +2,7 @@
 // 한 번 열면 인터넷 없이도 다시 열리게 앱 파일을 기기에 담아 둔다.
 // 문서 내용은 여기서 다루지 않는다(문서는 브라우저 저장소에만 있다). 바깥 주소로는 아무것도 보내지 않는다.
 // 파일을 바꿔 배포할 때 VERSION 을 올리면 예전 캐시가 정리된다.
-const VERSION = 'v6';
+const VERSION = 'v7';
 const CACHE = 'mdstudio-web-' + VERSION;
 const ASSETS = [
   "./",
@@ -33,12 +33,13 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
+  // 하나라도 못 받으면 설치를 실패시킨다. 그래야 반쯤 찬 새 캐시가 멀쩡한 옛 캐시를 밀어내지 않는다.
+  // (옛 서비스 워커가 그대로 남고, 브라우저가 다음 방문 때 다시 시도한다.)
   event.waitUntil(
-    caches.open(CACHE).then((cache) =>
-      Promise.all(ASSETS.map((path) => cache.add(new Request(path, { cache: 'reload' })).catch(() => {})))
-    )
+    caches.open(CACHE)
+      .then((cache) => Promise.all(ASSETS.map((path) => cache.add(new Request(path, { cache: 'reload' })))))
+      .then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
@@ -60,10 +61,17 @@ self.addEventListener('fetch', (event) => {
       .then((response) => {
         if (response && response.ok && response.type === 'basic') {
           const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, copy));
+          // 응답을 돌려준 뒤에도 캐시에 다 쓸 때까지 서비스 워커가 꺼지지 않게 한다.
+          event.waitUntil(caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => {}));
         }
         return response;
       })
-      .catch(() => caches.match(request, { ignoreSearch: true }).then((hit) => hit || caches.match('index.html')))
+      // 캐시에 없을 때 index.html 로 대신하는 것은 화면 이동 요청뿐이다.
+      // 스크립트·스타일 요청에 HTML 을 주면 「Unexpected token '<'」 로 더 알기 어렵게 깨진다.
+      .catch(() => caches.match(request, { ignoreSearch: true }).then((hit) => {
+        if (hit) return hit;
+        if (request.mode === 'navigate') return caches.match('index.html').then((page) => page || Response.error());
+        return Response.error();
+      }))
   );
 });

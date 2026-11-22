@@ -60,6 +60,23 @@ function createWindow() {
   // away from the app.
   mainWindow.webContents.on('will-navigate', (e) => e.preventDefault());
 
+  // 파일에 연결된 문서에 저장하지 않은 변경이 있으면 렌더러가 beforeunload 를 막는다.
+  // Electron 은 그때 아무것도 묻지 않고 닫기를 조용히 취소한다. 그러면 창이 안 닫히고
+  // 「지금 재시작」으로 업데이트를 적용할 수도 없다. 그래서 여기서 직접 묻는다.
+  mainWindow.webContents.on('will-prevent-unload', (event) => {
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: 'question',
+      buttons: ['닫기', '취소'],
+      defaultId: 1,
+      cancelId: 1,
+      title: '저장하지 않은 변경',
+      message: '연결된 파일에 저장하지 않은 변경이 있습니다.',
+      detail: '그래도 닫으면 그 변경은 파일에 반영되지 않습니다.',
+    });
+    // 여기서 preventDefault 는 「닫기를 막지 말라」는 뜻이다.
+    if (choice === 0) event.preventDefault();
+  });
+
   // Menu items dispatch a named command to the renderer over IPC rather than
   // eval'ing a DOM click — needed now that "내보내기" is a dropdown with no
   // single element to click, and a cleaner pattern than string-eval anyway.
@@ -176,7 +193,7 @@ function setupAutoUpdater() {
       cancelId: 1,
       title: '업데이트 준비 완료',
       message: `새 버전 ${info.version} 이(가) 준비되었습니다.`,
-      detail: '지금 재시작하면 업데이트가 적용됩니다. 저장되지 않은 내용은 자동으로 저장됩니다.',
+      detail: '지금 재시작하면 업데이트가 적용됩니다. 연결된 파일에 저장하지 않은 변경이 있으면 닫기 전에 한 번 더 묻습니다.',
     });
     if (response === 0) autoUpdater.quitAndInstall();
   });
@@ -185,7 +202,9 @@ function setupAutoUpdater() {
   // offline, or a blocked network all surface here.
   autoUpdater.on('error', (err) => console.error('Auto-update check failed:', err));
 
-  autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+  // AndNotify 를 쓰지 않는다. 그쪽은 내려받기가 끝나면 영어 알림을 따로 띄워,
+  // 위의 재시작 창과 겹친다. 내려받기는 checkForUpdates 만으로도 이어진다.
+  autoUpdater.checkForUpdates().catch((err) => {
     console.error('Auto-update check failed:', err);
   });
 }

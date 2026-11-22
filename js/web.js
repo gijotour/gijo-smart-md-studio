@@ -35,8 +35,13 @@
     btn.addEventListener('click', function () {
       if (!deferred) return;
       var p = deferred; deferred = null;
-      p.prompt();
-      if (p.userChoice && p.userChoice.then) p.userChoice.then(function () { btn.remove(); btn = null; });
+      // 설치가 끝났다는 신호(appinstalled)가 먼저 와서 단추가 이미 없을 수 있다.
+      var removeBtn = function () { if (btn) { btn.remove(); btn = null; } };
+      try {
+        var shown = p.prompt();
+        if (shown && shown.catch) shown.catch(removeBtn);
+      } catch (_) { removeBtn(); return; }
+      if (p.userChoice && p.userChoice.then) p.userChoice.then(removeBtn, removeBtn);
     });
     document.body.appendChild(btn);
   });
