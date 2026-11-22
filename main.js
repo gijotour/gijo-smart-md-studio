@@ -1,5 +1,36 @@
 const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs');
+
+// 앱 설정은 사용자 데이터 폴더의 settings.json 한 파일에 둔다.
+// 파일이 없거나 깨져 있으면 기본값(업데이트 확인 켬)으로 돈다.
+function settingsPath() {
+  return path.join(app.getPath('userData'), 'settings.json');
+}
+
+function readSettings() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(settingsPath(), 'utf8'));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch (err) {
+    return {};
+  }
+}
+
+function writeSettings(next) {
+  try {
+    fs.mkdirSync(path.dirname(settingsPath()), { recursive: true });
+    fs.writeFileSync(settingsPath(), JSON.stringify(next, null, 2));
+    return true;
+  } catch (err) {
+    console.error('Could not save settings:', err);
+    return false;
+  }
+}
+
+function updateCheckEnabled() {
+  return readSettings().checkForUpdates !== false;
+}
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -76,6 +107,23 @@ function createWindow() {
         { type: 'separator' },
         { label: '전체 화면', role: 'togglefullscreen' }
       ]
+    },
+    {
+      label: '도움말 (Help)',
+      submenu: [
+        {
+          // 업데이트 확인은 이 앱이 스스로 바깥과 통신하는 유일한 곳이라 끌 수 있게 둔다.
+          // 이미 시작한 확인은 되돌리지 않고, 다음 실행부터 적용된다.
+          label: '시작할 때 업데이트 확인',
+          type: 'checkbox',
+          checked: updateCheckEnabled(),
+          click: (item) => {
+            const saved = writeSettings({ ...readSettings(), checkForUpdates: item.checked });
+            // 저장에 실패했으면 표시를 실제 설정으로 되돌려 거짓으로 보이지 않게 한다.
+            if (!saved) item.checked = updateCheckEnabled();
+          }
+        }
+      ]
     }
   ];
 
@@ -106,6 +154,7 @@ ipcMain.handle('export:print-to-pdf', async (event) => {
 // electron-updater throws rather than no-oping, so it is not even loaded.
 function setupAutoUpdater() {
   if (!app.isPackaged) return;
+  if (!updateCheckEnabled()) return;
 
   let autoUpdater;
   try {

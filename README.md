@@ -32,7 +32,7 @@
   - **Word (.docx)**: 구조(제목/목록/표/이미지)가 보존된 워드 문서 (색상 등 세부 스타일은 단순화됨)
 - 🎨 **프리미엄 테마 & 자동 저장**: 다크 모드 / 라이트 모드 전환 및 IndexedDB 기반 자동 저장
 - 🖥 **웹 & 데스크톱 앱 겸용**: 브라우저(Web) 및 Electron 데스크톱 앱(Desktop App) 지원, 오프라인에서도 완전히 동작
-- 🔄 **자동 업데이트**: 데스크톱 앱은 새 버전이 릴리즈되면 자동으로 내려받고, 재시작 여부를 물어봅니다
+- 🔄 **자동 업데이트**: 데스크톱 앱은 새 버전이 릴리즈되면 자동으로 내려받고, 재시작 여부를 물어봅니다. 「도움말 → 시작할 때 업데이트 확인」에서 끌 수 있습니다
 - ⌨️ **단축키**: `Ctrl+B` 굵게, `Ctrl+I` 기울임, `Ctrl+1~3` 제목 (제목 단축키는 데스크톱 앱 전용 — 브라우저가 탭 전환에 선점)
 - ♿ **접근성 & 반응형**: 키보드 포커스 표시, 아이콘 버튼 라벨, 좁은 화면에서도 무너지지 않는 레이아웃
 
@@ -141,6 +141,8 @@ gijo-smart-md-studio/
 
 Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
 
+> 서명은 신청해 둔 상태이고 아직 적용되지 않았습니다. 지금 받는 설치 파일은 위 「Windows에서 설치 시 안내」대로 서명이 없습니다.
+
 Windows 설치 파일은 이 저장소의 소스를 GitHub Actions 에서 빌드한 것만 서명합니다. 릴리스마다 승인자가 서명을 직접 승인합니다.
 
 | 역할 | 맡은 사람 |
@@ -152,7 +154,7 @@ Windows 설치 파일은 이 저장소의 소스를 GitHub Actions 에서 빌드
 
 This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
 
-단 하나의 예외는 업데이트 확인입니다. 설치판은 시작할 때 [GitHub Releases](https://github.com/gijotour/gijo-smart-md-studio/releases) 에 새 버전이 있는지 묻고, 있으면 내려받습니다. 이때 문서 내용이나 개인 정보는 보내지 않습니다. 문서는 사용자의 기기에만 저장됩니다.
+단 하나의 예외는 업데이트 확인입니다. 설치판은 시작할 때 [GitHub Releases](https://github.com/gijotour/gijo-smart-md-studio/releases) 에 새 버전이 있는지 묻고, 있으면 내려받습니다. 이때 문서 내용이나 개인 정보는 보내지 않습니다. 문서는 사용자의 기기에만 저장됩니다. 메뉴의 「도움말 → 시작할 때 업데이트 확인」 표시를 지우면 다음 실행부터 이 확인도 하지 않습니다. 이 메뉴는 v2.1.0 다음 판부터 들어갑니다.
 
 ---
 
