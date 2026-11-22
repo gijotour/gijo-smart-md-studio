@@ -20,7 +20,11 @@ function readSettings() {
 function writeSettings(next) {
   try {
     fs.mkdirSync(path.dirname(settingsPath()), { recursive: true });
-    fs.writeFileSync(settingsPath(), JSON.stringify(next, null, 2));
+    // 임시 파일에 다 쓴 뒤 이름을 바꾼다. 쓰는 도중에 앱이 죽어도 반쯤 쓰인 파일이 남지 않는다.
+    // (반쯤 쓰인 파일은 읽을 때 기본값으로 돌아가, 꺼 둔 업데이트 확인이 다시 켜진다.)
+    const tmp = settingsPath() + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(next, null, 2));
+    fs.renameSync(tmp, settingsPath());
     return true;
   } catch (err) {
     console.error('Could not save settings:', err);
