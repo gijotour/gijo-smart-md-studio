@@ -4,7 +4,7 @@
 
 # GIJO Smart MD Studio (마크다운 MD 전용 문서 작성기) 📝
 
-![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.1.1-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Electron](https://img.shields.io/badge/Electron-33.x-47848F.svg)
 
@@ -141,7 +141,7 @@ gijo-smart-md-studio/
 
 This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
 
-단 하나의 예외는 업데이트 확인입니다. 설치판은 시작할 때 [GitHub Releases](https://github.com/gijotour/gijo-smart-md-studio/releases) 에 새 버전이 있는지 묻고, 있으면 내려받습니다. 이때 문서 내용이나 개인 정보는 보내지 않습니다. 문서는 사용자의 기기에만 저장됩니다. 메뉴의 「도움말 → 시작할 때 업데이트 확인」 표시를 지우면 다음 실행부터 이 확인도 하지 않습니다. 이 메뉴는 v2.1.0 다음 판부터 들어갑니다.
+단 하나의 예외는 업데이트 확인입니다. 설치판은 시작할 때 [GitHub Releases](https://github.com/gijotour/gijo-smart-md-studio/releases) 에 새 버전이 있는지 묻고, 있으면 내려받습니다. 이때 문서 내용이나 개인 정보는 보내지 않습니다. 문서는 사용자의 기기에만 저장됩니다. 메뉴의 「도움말 → 시작할 때 업데이트 확인」 표시를 지우면 다음 실행부터 이 확인도 하지 않습니다. 이 메뉴는 v2.1.1부터 들어 있습니다.
 
 ---
 
