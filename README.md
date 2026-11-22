@@ -137,6 +137,25 @@ gijo-smart-md-studio/
 
 ---
 
+## 🔏 Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+
+Windows 설치 파일은 이 저장소의 소스를 GitHub Actions 에서 빌드한 것만 서명합니다. 릴리스마다 승인자가 서명을 직접 승인합니다.
+
+| 역할 | 맡은 사람 |
+|---|---|
+| Committers and reviewers | [gijotour](https://github.com/gijotour) |
+| Approvers | [gijotour](https://github.com/gijotour) |
+
+### Privacy policy
+
+This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+
+단 하나의 예외는 업데이트 확인입니다. 설치판은 시작할 때 [GitHub Releases](https://github.com/gijotour/gijo-smart-md-studio/releases) 에 새 버전이 있는지 묻고, 있으면 내려받습니다. 이때 문서 내용이나 개인 정보는 보내지 않습니다. 문서는 사용자의 기기에만 저장됩니다.
+
+---
+
 ## 📄 라이선스
 
 MIT License © 2026 GIJO
