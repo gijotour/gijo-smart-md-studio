@@ -285,6 +285,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // thing that reliably survives is a synchronous localStorage write, so
   // stash unsaved content in a recovery record and re-apply it on next
   // launch (applyRecoveryIfAny).
+  window.addEventListener('pagehide', () => revokePreviewBlobUrls());
+
   window.addEventListener('beforeunload', (e) => {
     if (storageAvailable && (autoSaveTimer || saveInFlight)) {
       clearTimeout(autoSaveTimer);
@@ -301,6 +303,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dirtyLinkedDocIds.size > 0) {
       e.preventDefault();
       e.returnValue = '';
+      // 사용자가 「취소」를 고르면 이 화면을 계속 쓴다. 미리보기 그림 주소를 여기서 지우면
+      // 남은 화면의 그림이 깨진다. 실제로 떠날 때(pagehide) 지운다.
+      return;
     }
     revokePreviewBlobUrls();
   });

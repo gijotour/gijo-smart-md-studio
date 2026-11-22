@@ -2,7 +2,7 @@
 // 한 번 열면 인터넷 없이도 다시 열리게 앱 파일을 기기에 담아 둔다.
 // 문서 내용은 여기서 다루지 않는다(문서는 브라우저 저장소에만 있다). 바깥 주소로는 아무것도 보내지 않는다.
 // 파일을 바꿔 배포할 때 VERSION 을 올리면 예전 캐시가 정리된다.
-const VERSION = 'v7';
+const VERSION = 'v8';
 const CACHE = 'mdstudio-web-' + VERSION;
 const ASSETS = [
   "./",
@@ -38,6 +38,8 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE)
       .then((cache) => Promise.all(ASSETS.map((path) => cache.add(new Request(path, { cache: 'reload' })))))
+      // 실패하면 반쯤 찬 이 판의 캐시를 지운다. 남겨 두면 옛 판 화면에 새 판 파일이 섞여 나올 수 있다.
+      .catch((err) => caches.delete(CACHE).then(() => { throw err; }))
       .then(() => self.skipWaiting())
   );
 });
@@ -62,7 +64,9 @@ self.addEventListener('fetch', (event) => {
         if (response && response.ok && response.type === 'basic') {
           const copy = response.clone();
           // 응답을 돌려준 뒤에도 캐시에 다 쓸 때까지 서비스 워커가 꺼지지 않게 한다.
-          event.waitUntil(caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => {}));
+          const stored = caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
+          // 응답이 아주 늦게 오면 waitUntil 이 예외를 던진다. 그 때문에 받은 응답까지 버리지 않게 한다.
+          try { event.waitUntil(stored); } catch (_) { /* 캐시 쓰기는 그대로 진행된다 */ }
         }
         return response;
       })

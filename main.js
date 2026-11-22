@@ -23,14 +23,25 @@ function writeSettings(next) {
     // 임시 파일에 다 쓴 뒤 이름을 바꾼다. 쓰는 도중에 앱이 죽어도 반쯤 쓰인 파일이 남지 않는다.
     // (반쯤 쓰인 파일은 읽을 때 기본값으로 돌아가, 꺼 둔 업데이트 확인이 다시 켜진다.)
     const tmp = settingsPath() + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(next, null, 2));
-    fs.renameSync(tmp, settingsPath());
+    const body = JSON.stringify(next, null, 2);
+    fs.writeFileSync(tmp, body);
+    try {
+      fs.renameSync(tmp, settingsPath());
+    } catch (renameErr) {
+      // Windows 에서는 백신·동기화 프로그램이 파일을 잠깐 잡고 있으면 이름 바꾸기가 실패한다.
+      // 그때는 바로 덮어쓰고 임시 파일을 치운다. 설정을 아예 못 바꾸는 것보다 낫다.
+      fs.writeFileSync(settingsPath(), body);
+      fs.rmSync(tmp, { force: true });
+    }
     return true;
   } catch (err) {
     console.error('Could not save settings:', err);
     return false;
   }
 }
+
+// 「지금 재시작」을 누른 뒤 창이 실제로 닫혔을 때만 설치를 시작하려고 둔 표시.
+let installAfterClose = false;
 
 function updateCheckEnabled() {
   return readSettings().checkForUpdates !== false;
@@ -75,6 +86,8 @@ function createWindow() {
     });
     // 여기서 preventDefault 는 「닫기를 막지 말라」는 뜻이다.
     if (choice === 0) event.preventDefault();
+    // 닫기를 취소했으면 업데이트 설치도 시작하지 않는다. 받아 둔 업데이트는 다음에 앱을 끌 때 적용된다.
+    else installAfterClose = false;
   });
 
   // Menu items dispatch a named command to the renderer over IPC rather than
@@ -195,7 +208,20 @@ function setupAutoUpdater() {
       message: `새 버전 ${info.version} 이(가) 준비되었습니다.`,
       detail: '지금 재시작하면 업데이트가 적용됩니다. 연결된 파일에 저장하지 않은 변경이 있으면 닫기 전에 한 번 더 묻습니다.',
     });
-    if (response === 0) autoUpdater.quitAndInstall();
+    if (response !== 0) return;
+    // quitAndInstall 은 설치 파일을 먼저 띄우고 나서 앱을 끈다. 저장 안 한 변경 때문에 사용자가
+    // 닫기를 취소하면, 이미 뜬 설치 파일이 켜져 있는 앱을 강제로 끌 수 있다.
+    // 그래서 창을 먼저 닫아 보고, 실제로 닫혔을 때만 설치를 시작한다.
+    const win = BrowserWindow.getAllWindows()[0];
+    if (!win || win.isDestroyed()) {
+      autoUpdater.quitAndInstall();
+      return;
+    }
+    installAfterClose = true;
+    win.once('closed', () => {
+      if (installAfterClose) autoUpdater.quitAndInstall();
+    });
+    win.close();
   });
 
   // Update failures must never interrupt normal use — no release yet,
@@ -204,6 +230,8 @@ function setupAutoUpdater() {
 
   // AndNotify 를 쓰지 않는다. 그쪽은 내려받기가 끝나면 영어 알림을 따로 띄워,
   // 위의 재시작 창과 겹친다. 내려받기는 checkForUpdates 만으로도 이어진다.
+  // 업데이트 정보 파일이 없는 배포 형태에서는 확인 자체를 하지 않는다(AndNotify 가 하던 검사).
+  if (typeof autoUpdater.isUpdaterActive === 'function' && !autoUpdater.isUpdaterActive()) return;
   autoUpdater.checkForUpdates().catch((err) => {
     console.error('Auto-update check failed:', err);
   });
